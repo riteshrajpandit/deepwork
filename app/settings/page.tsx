@@ -7,7 +7,8 @@ import {
   AlertTriangle, Check, X, UserCog, ArrowRightLeft, ChevronDown
 } from "lucide-react";
 import Image from "next/image";
-import { orgApi, teamApi, OrgMember, OrgRole, ApiTeam, ApiError } from "@/lib/api";
+import { orgApi, teamApi, ApiError } from "@/lib/api";
+import type { OrgMember, OrgRole, ApiTeam } from "@/lib/api";
 
 // ── Role badge ────────────────────────────────────────────────────────────────
 

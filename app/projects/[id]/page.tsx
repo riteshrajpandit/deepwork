@@ -1,11 +1,13 @@
 "use client";
 import React, { use, useState, useEffect } from "react";
-import { useAppContext, Task, formatFriendlyDate, FileNode } from "@/components/AppProvider";
+import { useAppContext, formatFriendlyDate } from "@/components/AppProvider";
+import type { Task, FileNode } from "@/components/AppProvider";
 import { useParams } from "next/navigation";
 import { Plus, MoreHorizontal, Calendar, Target, LayoutGrid, Folder, FileText, ChevronRight, Upload, X, Archive, GitBranch } from "lucide-react";
 import Image from "next/image";
 import { DocumentEditor } from "@/components/DocumentEditor";
-import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import type { DropResult } from "@hello-pangea/dnd";
 
 export default function ProjectDashboard(props: { params: Promise<{ id: string }> }) {
   const params = use(props.params);

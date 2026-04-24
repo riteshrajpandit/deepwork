@@ -1,5 +1,6 @@
 "use client";
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, useMemo, useCallback } from "react";
+import type { ReactNode } from "react";
 import { X, Plus, GitBranch, ChevronDown, ChevronUp } from "lucide-react";
 import Image from "next/image";
 
@@ -82,18 +83,18 @@ const initialProjects: Project[] = [
 const initialOrganization: Organization = { id: 'org1', name: 'Trust & Peace Inc.' };
 
 const initialTeams: Team[] = [
-  { 
-    id: 't1', orgId: 'org1', name: 'Frontend Guild', description: 'Core UI/UX engineers', 
+  {
+    id: 't1', orgId: 'org1', name: 'Frontend Guild', description: 'Core UI/UX engineers',
     members: [
       { userId: 'u1', title: 'Organization Lead', permissions: { read: true, create: true, update: true, delete: true } },
       { userId: 'u2', title: 'Project Lead', permissions: { read: true, create: true, update: true, delete: true } }
-    ] 
+    ]
   },
-  { 
-    id: 't2', orgId: 'org1', name: 'Backend Services', description: 'API and Database team', 
+  {
+    id: 't2', orgId: 'org1', name: 'Backend Services', description: 'API and Database team',
     members: [
       { userId: 'u3', title: 'Team Lead', permissions: { read: true, create: true, update: true, delete: false } }
-    ] 
+    ]
   }
 ];
 
@@ -125,7 +126,7 @@ const initialMessages: Message[] = [
 export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  
+
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
@@ -134,15 +135,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [organization, setOrganization] = useState<Organization>(initialOrganization);
   const [teams, setTeams] = useState<Team[]>(initialTeams);
   const [files, setFiles] = useState<FileNode[]>(initialFiles);
-  
+
   const [isProjectModalOpen, setProjectModalOpen] = useState(false);
   const [isTaskModalOpen, setTaskModalOpen] = useState<{ open: boolean; projectId?: string; dateStr?: string }>({ open: false });
 
-  const addProject = (project: Pick<Project, 'name' | 'description' | 'memberIds'>) => {
-    setProjects(prev => [...prev, { ...project, id: `p${Date.now()}`, status: 'Active', teamIds: [] }]);
-  };
+  // ── Stable callbacks — never recreated unless deps change ──────────────────
 
-  const addUser = (userData: Pick<User, 'name' | 'role'> & { email: string }) => {
+  const addProject = useCallback((project: Pick<Project, 'name' | 'description' | 'memberIds'>) => {
+    setProjects(prev => [...prev, { ...project, id: `p${Date.now()}`, status: 'Active', teamIds: [] }]);
+  }, []);
+
+  const addUser = useCallback((userData: Pick<User, 'name' | 'role'> & { email: string }) => {
     const newId = `u${Date.now()}`;
     const newUser: User = {
       id: newId,
@@ -153,137 +156,178 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     setUsers(prev => [...prev, newUser]);
     return newId;
-  };
+  }, []);
 
-  const addTask = (task: Omit<Task, 'id' | 'status'>): string => {
+  const addTask = useCallback((task: Omit<Task, 'id' | 'status'>): string => {
     const newTaskId = `t${Date.now()}`;
     setTasks(prev => [...prev, { ...task, id: newTaskId, status: 'Todo' }]);
-
     if (task.notifyIds && task.notifyIds.length > 0) {
+      const ts = new Date().toISOString();
       const newNotifs = task.notifyIds.map(uid => ({
         id: `n${Date.now()}_${uid}`,
         userId: uid,
         message: `You were notified about a new task: ${task.title}`,
         read: false,
-        timestamp: new Date().toISOString(),
+        timestamp: ts,
         taskId: newTaskId
       }));
       setNotifications(prev => [...prev, ...newNotifs]);
     }
     return newTaskId;
-  };
+  }, []);
 
-  const addSubTask = (parentTaskId: string, task: Omit<Task, 'id' | 'status' | 'parentTaskId'>) => {
+  const addSubTask = useCallback((parentTaskId: string, task: Omit<Task, 'id' | 'status' | 'parentTaskId'>) => {
     const newTaskId = `t${Date.now()}`;
     setTasks(prev => [...prev, { ...task, id: newTaskId, status: 'Todo', parentTaskId }]);
-  };
+  }, []);
 
-  const markNotificationRead = (id: string) => {
+  const markNotificationRead = useCallback((id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
+  }, []);
 
-  const clearNotifications = () => {
-    if (currentUser) {
-       setNotifications(prev => prev.filter(n => n.userId !== currentUser.id));
-    }
-  };
+  const clearNotifications = useCallback(() => {
+    setNotifications(prev => prev.filter(n => n.userId !== currentUser?.id));
+  }, [currentUser?.id]);
 
-  const updateTaskStatus = (id: string, status: Task['status']) => {
+  const updateTaskStatus = useCallback((id: string, status: Task['status']) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, status } : t));
-  };
+  }, []);
 
-  const updateTaskAssignees = (id: string, assigneeIds: string[]) => {
+  const updateTaskAssignees = useCallback((id: string, assigneeIds: string[]) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, assigneeIds } : t));
-  };
+  }, []);
 
-  const addDiscussion = (discussion: Pick<Discussion, 'title' | 'projectId'>) => {
+  const addDiscussion = useCallback((discussion: Pick<Discussion, 'title' | 'projectId'>) => {
     setDiscussions(prev => [{ ...discussion, id: `d${Date.now()}`, updatedAt: new Date().toISOString() }, ...prev]);
-  };
+  }, []);
 
-  const addMessage = (message: Pick<Message, 'discussionId' | 'content' | 'authorId'>) => {
+  const addMessage = useCallback((message: Pick<Message, 'discussionId' | 'content' | 'authorId'>) => {
     const timestamp = new Date().toISOString();
     setMessages(prev => [...prev, { ...message, id: `m${Date.now()}`, timestamp }]);
-    setDiscussions(prev => prev.map(d => d.id === message.discussionId ? { ...d, updatedAt: timestamp } : d).sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
-  };
+    setDiscussions(prev =>
+      prev
+        .map(d => d.id === message.discussionId ? { ...d, updatedAt: timestamp } : d)
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    );
+  }, []);
 
-  const addTeam = (team: Pick<Team, 'name' | 'description' | 'members'>) => {
+  const addTeam = useCallback((team: Pick<Team, 'name' | 'description' | 'members'>) => {
     setTeams(prev => [...prev, { ...team, id: `tm${Date.now()}`, orgId: organization.id }]);
-  };
+  }, [organization.id]);
 
-  const updateTeamMembers = (id: string, members: TeamMember[]) => {
+  const updateTeamMembers = useCallback((id: string, members: TeamMember[]) => {
     setTeams(prev => prev.map(t => t.id === id ? { ...t, members } : t));
-  };
+  }, []);
 
-  const linkTeamToProject = (projectId: string, teamId: string) => {
+  const linkTeamToProject = useCallback((projectId: string, teamId: string) => {
     setProjects(prev => prev.map(p => {
-      if (p.id === projectId) {
-        return { ...p, teamIds: p.teamIds.includes(teamId) ? p.teamIds : [...p.teamIds, teamId] };
-      }
-      return p;
+      if (p.id !== projectId) return p;
+      return { ...p, teamIds: p.teamIds.includes(teamId) ? p.teamIds : [...p.teamIds, teamId] };
     }));
-  };
+  }, []);
 
-  const addFile = (f: Pick<FileNode, 'projectId' | 'type' | 'name' | 'parentId' | 'content' | 'attachedMemberIds'>) => {
+  const addFile = useCallback((f: Pick<FileNode, 'projectId' | 'type' | 'name' | 'parentId' | 'content' | 'attachedMemberIds'>) => {
     setFiles(prev => [...prev, { ...f, id: `f${Date.now()}`, uploaderId: 'u1' }]);
-  };
+  }, []);
 
-  const updateFileContent = (id: string, content: string) => {
+  const updateFileContent = useCallback((id: string, content: string) => {
     setFiles(prev => prev.map(f => f.id === id ? { ...f, content } : f));
-  };
+  }, []);
 
-  const archiveProject = (id: string) => {
+  const archiveProject = useCallback((id: string) => {
     setProjects(prev => prev.map(p => p.id === id ? { ...p, status: 'Archived' } : p));
-  };
+  }, []);
 
-  const restoreProject = (id: string) => {
+  const restoreProject = useCallback((id: string) => {
     setProjects(prev => prev.map(p => p.id === id ? { ...p, status: 'Active' } : p));
-  };
+  }, []);
 
-  const archiveFile = (id: string) => {
+  const archiveFile = useCallback((id: string) => {
     setFiles(prev => prev.map(f => f.id === id ? { ...f, isArchived: true } : f));
-  };
+  }, []);
 
-  const restoreFile = (id: string) => {
+  const restoreFile = useCallback((id: string) => {
     setFiles(prev => prev.map(f => f.id === id ? { ...f, isArchived: false } : f));
-  };
+  }, []);
 
-  const login = (id: string) => {
-    const u = users.find(u => u.id === id);
-    if (u) setCurrentUser(u);
-  };
+  const login = useCallback((id: string) => {
+    setCurrentUser(u => {
+      const found = initialUsers.find(u => u.id === id);
+      return found ?? u;
+    });
+    setUsers(prev => {
+      const found = prev.find(u => u.id === id);
+      if (found) setCurrentUser(found);
+      return prev;
+    });
+  }, []);
 
-  const loginWithToken = (user: User) => {
+  const loginWithToken = useCallback((user: User) => {
     setCurrentUser(user);
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setCurrentUser(null);
-  };
+  }, []);
 
-  const updateOrganization = (patch: Partial<Organization>) => {
+  const updateOrganization = useCallback((patch: Partial<Organization>) => {
     setOrganization(prev => ({ ...prev, ...patch }));
-  };
+  }, []);
+
+  // ── Memoize the context value — only changes when actual data changes ───────
+  const value = useMemo<AppContextType>(() => ({
+    currentUser, login, loginWithToken, logout,
+    notifications, markNotificationRead, clearNotifications,
+    projects, addProject,
+    tasks, addTask, addSubTask, updateTaskStatus, updateTaskAssignees,
+    users, addUser,
+    discussions, addDiscussion,
+    messages, addMessage,
+    organization, updateOrganization,
+    teams, addTeam, updateTeamMembers, linkTeamToProject,
+    files, addFile, updateFileContent,
+    archiveProject, restoreProject,
+    archiveFile, restoreFile,
+    isProjectModalOpen, setProjectModalOpen,
+    isTaskModalOpen, setTaskModalOpen,
+  }), [
+    currentUser, login, loginWithToken, logout,
+    notifications, markNotificationRead, clearNotifications,
+    projects, addProject,
+    tasks, addTask, addSubTask, updateTaskStatus, updateTaskAssignees,
+    users, addUser,
+    discussions, addDiscussion,
+    messages, addMessage,
+    organization, updateOrganization,
+    teams, addTeam, updateTeamMembers, linkTeamToProject,
+    files, addFile, updateFileContent,
+    archiveProject, restoreProject,
+    archiveFile, restoreFile,
+    isProjectModalOpen, isTaskModalOpen,
+  ]);
 
   return (
-    <AppContext.Provider value={{
-      currentUser, login, loginWithToken, logout,
-      notifications, markNotificationRead, clearNotifications,
-      projects, addProject,
-      tasks, addTask, addSubTask, updateTaskStatus, updateTaskAssignees,
-      users, addUser,
-      discussions, addDiscussion,
-      messages, addMessage,
-      organization, updateOrganization,
-      teams, addTeam, updateTeamMembers, linkTeamToProject,
-      files, addFile, updateFileContent,
-      archiveProject, restoreProject,
-      archiveFile, restoreFile,
-      isProjectModalOpen, setProjectModalOpen,
-      isTaskModalOpen, setTaskModalOpen
-    }}>
+    <AppContext.Provider value={value}>
       {children}
-      {isProjectModalOpen && <ProjectModal onClose={() => setProjectModalOpen(false)} onAdd={addProject} users={users} onInviteUser={addUser} />}
-      {isTaskModalOpen.open && <TaskModal projectId={isTaskModalOpen.projectId} dateStr={isTaskModalOpen.dateStr} onClose={() => setTaskModalOpen({ open: false })} onAdd={addTask} onAddSubTask={addSubTask} projects={projects} users={users} />}
+      {isProjectModalOpen && (
+        <ProjectModal
+          onClose={() => setProjectModalOpen(false)}
+          onAdd={addProject}
+          users={users}
+          onInviteUser={addUser}
+        />
+      )}
+      {isTaskModalOpen.open && (
+        <TaskModal
+          projectId={isTaskModalOpen.projectId}
+          dateStr={isTaskModalOpen.dateStr}
+          onClose={() => setTaskModalOpen({ open: false })}
+          onAdd={addTask}
+          onAddSubTask={addSubTask}
+          projects={projects}
+          users={users}
+        />
+      )}
     </AppContext.Provider>
   );
 }
@@ -292,42 +336,46 @@ export const useAppContext = () => {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error("useAppContext must be used within AppProvider");
   return ctx;
-}
+};
 
-// Modals
-function ProjectModal({ onClose, onAdd, users, onInviteUser }: { onClose: () => void, onAdd: (p: any) => void, users: User[], onInviteUser: (u: any) => string }) {
+// ── Modals ────────────────────────────────────────────────────────────────────
+
+function ProjectModal({ onClose, onAdd, users, onInviteUser }: {
+  onClose: () => void;
+  onAdd: (p: Pick<Project, 'name' | 'description' | 'memberIds'>) => void;
+  users: User[];
+  onInviteUser: (u: Pick<User, 'name' | 'role'> & { email: string }) => string;
+}) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [memberIds, setMemberIds] = useState<string[]>([]);
-  
-  // Invite state
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("Contributor");
 
-  const toggleMember = (id: string) => {
+  const toggleMember = useCallback((id: string) => {
     setMemberIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
+  }, []);
 
-  const handleInvite = () => {
+  const handleInvite = useCallback(() => {
     if (!inviteEmail || !inviteEmail.includes('@')) return;
     const newId = onInviteUser({ email: inviteEmail, role: inviteRole, name: inviteEmail.split('@')[0] });
     setMemberIds(prev => [...prev, newId]);
     setInviteEmail("");
-  };
+  }, [inviteEmail, inviteRole, onInviteUser]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!name) return;
     onAdd({ name, description, memberIds });
     onClose();
-  };
+  }, [name, description, memberIds, onAdd, onClose]);
 
   return (
     <div className="fixed inset-0 bg-on-background/20 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
       <form onSubmit={handleSubmit} className="bg-surface border border-outline-variant/30 rounded-xl shadow-2xl w-full max-w-lg p-6 relative max-h-[90vh] flex flex-col">
         <button type="button" onClick={onClose} className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface cursor-pointer"><X size={20}/></button>
         <h2 className="text-headline-md font-headline-md text-on-surface mb-6 shrink-0">Create New Project</h2>
-        
+
         <div className="space-y-6 overflow-y-auto no-scrollbar pb-4 -mx-2 px-2">
           <div className="space-y-4">
             <div>
@@ -342,17 +390,12 @@ function ProjectModal({ onClose, onAdd, users, onInviteUser }: { onClose: () => 
 
           <div className="pt-4 border-t border-outline-variant/30">
             <h3 className="text-body-lg font-semibold text-on-surface mb-4">Project Members</h3>
-            
             <div className="mb-6">
               <label className="block text-label-sm font-label-sm text-on-surface-variant mb-2">Assign Existing Members</label>
               <div className="flex gap-2 flex-wrap max-h-[120px] overflow-y-auto p-1">
                 {users.map(u => (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() => toggleMember(u.id)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-body-md transition-all cursor-pointer ${memberIds.includes(u.id) ? 'bg-primary border-primary text-on-primary' : 'bg-surface-container-lowest border-outline-variant hover:border-outline text-on-surface-variant'}`}
-                  >
+                  <button key={u.id} type="button" onClick={() => toggleMember(u.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-body-md transition-all cursor-pointer ${memberIds.includes(u.id) ? 'bg-primary border-primary text-on-primary' : 'bg-surface-container-lowest border-outline-variant hover:border-outline text-on-surface-variant'}`}>
                     <Image src={u.avatar} width={18} height={18} className="rounded-full overflow-hidden shrink-0" alt={u.name} unoptimized />
                     <div className="flex flex-col text-left line-clamp-1">
                       <span>{u.name}</span>
@@ -366,30 +409,13 @@ function ProjectModal({ onClose, onAdd, users, onInviteUser }: { onClose: () => 
             <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-4">
               <label className="block text-label-sm font-label-sm text-on-surface-variant mb-2">Invite New Member</label>
               <div className="flex flex-col sm:flex-row gap-2">
-                <input 
-                  type="email" 
-                  value={inviteEmail} 
-                  onChange={e => setInviteEmail(e.target.value)} 
-                  placeholder="email@example.com" 
-                  className="flex-1 bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-2 text-body-sm outline-none focus:border-primary transition-colors"
-                />
-                <select 
-                  value={inviteRole} 
-                  onChange={e => setInviteRole(e.target.value)}
-                  className="bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-2 text-body-sm outline-none focus:border-primary cursor-pointer"
-                >
+                <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="email@example.com" className="flex-1 bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-2 text-body-sm outline-none focus:border-primary transition-colors" />
+                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} className="bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-2 text-body-sm outline-none focus:border-primary cursor-pointer">
                   <option value="Contributor">Contributor</option>
                   <option value="Team Lead">Team Lead</option>
                   <option value="Project Lead">Project Lead</option>
                 </select>
-                <button 
-                  type="button" 
-                  onClick={handleInvite}
-                  disabled={!inviteEmail}
-                  className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface px-4 py-2 rounded-lg font-medium text-body-sm transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  Invite
-                </button>
+                <button type="button" onClick={handleInvite} disabled={!inviteEmail} className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface px-4 py-2 rounded-lg font-medium text-body-sm transition-colors cursor-pointer disabled:opacity-50">Invite</button>
               </div>
             </div>
           </div>
@@ -404,37 +430,45 @@ function ProjectModal({ onClose, onAdd, users, onInviteUser }: { onClose: () => 
   );
 }
 
-function TaskModal({ onClose, onAdd, onAddSubTask, projects, users, projectId, dateStr }: { onClose: () => void, onAdd: (t: any) => string, onAddSubTask: (parentTaskId: string, t: any) => void, projects: Project[], users: User[], projectId?: string, dateStr?: string }) {
+function TaskModal({ onClose, onAdd, onAddSubTask, projects, users, projectId, dateStr }: {
+  onClose: () => void;
+  onAdd: (t: Omit<Task, 'id' | 'status'>) => string;
+  onAddSubTask: (parentTaskId: string, t: Omit<Task, 'id' | 'status' | 'parentTaskId'>) => void;
+  projects: Project[];
+  users: User[];
+  projectId?: string;
+  dateStr?: string;
+}) {
   const [title, setTitle] = useState("");
   const [projId, setProjId] = useState(projectId || (projects[0]?.id || ""));
   const [dueDate, setDueDate] = useState(dateStr || "2026-04-23");
-  const [priority, setPriority] = useState<'Low'|'Medium'|'High'>('Medium');
+  const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Medium');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [notifyIds, setNotifyIds] = useState<string[]>([]);
   const [subTaskTitles, setSubTaskTitles] = useState<string[]>([]);
   const [subTaskInput, setSubTaskInput] = useState("");
   const [showSubTasks, setShowSubTasks] = useState(false);
 
-  const toggleAssignee = (id: string) => {
+  const toggleAssignee = useCallback((id: string) => {
     setAssigneeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
+  }, []);
 
-  const toggleNotify = (id: string) => {
+  const toggleNotify = useCallback((id: string) => {
     setNotifyIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
+  }, []);
 
-  const addSubTaskTitle = () => {
+  const addSubTaskTitle = useCallback(() => {
     const trimmed = subTaskInput.trim();
     if (!trimmed) return;
     setSubTaskTitles(prev => [...prev, trimmed]);
     setSubTaskInput("");
-  };
+  }, [subTaskInput]);
 
-  const removeSubTaskTitle = (index: number) => {
+  const removeSubTaskTitle = useCallback((index: number) => {
     setSubTaskTitles(prev => prev.filter((_, i) => i !== index));
-  };
+  }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!title || !projId) return;
     const parentId = onAdd({ title, projectId: projId, dueDate, priority, assigneeIds, notifyIds });
@@ -442,20 +476,23 @@ function TaskModal({ onClose, onAdd, onAddSubTask, projects, users, projectId, d
       onAddSubTask(parentId, { title: subTitle, projectId: projId, dueDate, priority: 'Low', assigneeIds: [], notifyIds: [] });
     });
     onClose();
-  };
+  }, [title, projId, dueDate, priority, assigneeIds, notifyIds, subTaskTitles, onAdd, onAddSubTask, onClose]);
+
+  // Non-org-lead users for notifications
+  const notifyableUsers = useMemo(() => users.filter(u => u.role !== 'Organization Lead'), [users]);
 
   return (
     <div className="fixed inset-0 bg-on-background/20 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
       <form onSubmit={handleSubmit} className="bg-surface border border-outline-variant/30 rounded-xl shadow-2xl w-full max-w-md p-6 relative">
         <button type="button" onClick={onClose} className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface cursor-pointer"><X size={20}/></button>
         <h2 className="text-headline-md font-headline-md text-on-surface mb-6">Add New Task</h2>
-        
+
         <div className="space-y-4">
           <div>
             <label className="block text-label-sm font-label-sm text-on-surface-variant mb-1">Task Title</label>
             <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Finalize copy for homepage" className="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg px-4 py-2 outline-none focus:border-primary text-body-md transition-colors" required />
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-label-sm font-label-sm text-on-surface-variant mb-1">Project</label>
@@ -465,7 +502,7 @@ function TaskModal({ onClose, onAdd, onAddSubTask, projects, users, projectId, d
             </div>
             <div>
               <label className="block text-label-sm font-label-sm text-on-surface-variant mb-1">Priority</label>
-              <select value={priority} onChange={e => setPriority(e.target.value as any)} className="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-2 outline-none focus:border-primary text-body-md transition-colors cursor-pointer">
+              <select value={priority} onChange={e => setPriority(e.target.value as 'Low' | 'Medium' | 'High')} className="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-2 outline-none focus:border-primary text-body-md transition-colors cursor-pointer">
                 <option value="Low">Low</option>
                 <option value="Medium">Medium</option>
                 <option value="High">High</option>
@@ -482,12 +519,8 @@ function TaskModal({ onClose, onAdd, onAddSubTask, projects, users, projectId, d
             <label className="block text-label-sm font-label-sm text-on-surface-variant mb-2">Assign Team Members</label>
             <div className="flex gap-2 flex-wrap">
               {users.map(u => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => toggleAssignee(u.id)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-body-md transition-all cursor-pointer ${assigneeIds.includes(u.id) ? 'bg-primary border-primary text-on-primary' : 'bg-surface-container-lowest border-outline-variant hover:border-outline text-on-surface-variant'}`}
-                >
+                <button key={u.id} type="button" onClick={() => toggleAssignee(u.id)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-body-md transition-all cursor-pointer ${assigneeIds.includes(u.id) ? 'bg-primary border-primary text-on-primary' : 'bg-surface-container-lowest border-outline-variant hover:border-outline text-on-surface-variant'}`}>
                   <Image src={u.avatar} width={18} height={18} className="rounded-full overflow-hidden shrink-0" alt={u.name} unoptimized />
                   <div className="flex flex-col text-left line-clamp-1">
                     <span>{u.name}</span>
@@ -501,13 +534,9 @@ function TaskModal({ onClose, onAdd, onAddSubTask, projects, users, projectId, d
           <div>
             <label className="block text-label-sm font-label-sm text-on-surface-variant mb-2">Notify Members (Optional)</label>
             <div className="flex gap-2 flex-wrap">
-              {users.filter(u => u.role !== 'Organization Lead').map(u => (
-                <button
-                  key={`notify-${u.id}`}
-                  type="button"
-                  onClick={() => toggleNotify(u.id)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-body-md transition-all cursor-pointer ${notifyIds.includes(u.id) ? 'bg-secondary-container border-secondary-container text-on-secondary-container' : 'bg-surface-container-lowest border-outline-variant hover:border-outline text-on-surface-variant'}`}
-                >
+              {notifyableUsers.map(u => (
+                <button key={`notify-${u.id}`} type="button" onClick={() => toggleNotify(u.id)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-body-md transition-all cursor-pointer ${notifyIds.includes(u.id) ? 'bg-secondary-container border-secondary-container text-on-secondary-container' : 'bg-surface-container-lowest border-outline-variant hover:border-outline text-on-surface-variant'}`}>
                   <div className="flex flex-col text-left line-clamp-1">
                     <span>{u.name}</span>
                     <span className="text-[10px] opacity-70 leading-none">{u.role}</span>
@@ -518,11 +547,8 @@ function TaskModal({ onClose, onAdd, onAddSubTask, projects, users, projectId, d
           </div>
 
           <div className="border-t border-outline-variant/30 pt-4">
-            <button
-              type="button"
-              onClick={() => setShowSubTasks(p => !p)}
-              className="flex items-center gap-2 text-label-sm font-label-sm text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer w-full"
-            >
+            <button type="button" onClick={() => setShowSubTasks(p => !p)}
+              className="flex items-center gap-2 text-label-sm font-label-sm text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer w-full">
               <GitBranch size={15} className="text-primary" />
               <span className="font-medium">Sub-tasks</span>
               {subTaskTitles.length > 0 && (
@@ -543,20 +569,12 @@ function TaskModal({ onClose, onAdd, onAddSubTask, projects, users, projectId, d
                   </div>
                 ))}
                 <div className="flex gap-2 pl-4 border-l-2 border-outline-variant/30 mt-2">
-                  <input
-                    type="text"
-                    value={subTaskInput}
-                    onChange={e => setSubTaskInput(e.target.value)}
+                  <input type="text" value={subTaskInput} onChange={e => setSubTaskInput(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSubTaskTitle(); } }}
                     placeholder="Add a sub-task…"
-                    className="flex-1 bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-1.5 outline-none focus:border-primary text-body-md transition-colors text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={addSubTaskTitle}
-                    disabled={!subTaskInput.trim()}
-                    className="p-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-colors cursor-pointer disabled:opacity-40"
-                  >
+                    className="flex-1 bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-1.5 outline-none focus:border-primary text-body-md transition-colors text-sm" />
+                  <button type="button" onClick={addSubTaskTitle} disabled={!subTaskInput.trim()}
+                    className="p-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-colors cursor-pointer disabled:opacity-40">
                     <Plus size={16} />
                   </button>
                 </div>

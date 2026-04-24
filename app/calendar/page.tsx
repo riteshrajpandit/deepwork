@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
-import { useAppContext, formatFriendlyDate, Task } from "@/components/AppProvider";
+import { useAppContext, formatFriendlyDate } from "@/components/AppProvider";
+import type { Task } from "@/components/AppProvider";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Grid, Clock, CheckSquare, MoreHorizontal, X, LayoutTemplate } from "lucide-react";
 import Image from "next/image";
 
