@@ -1,0 +1,1299 @@
+{
+  "project": "Trust & Peace",
+  "version": "1.0.0",
+  "generatedOn": "2026-04-23",
+  "database": {
+    "engine": "PostgreSQL",
+    "orm": "Django ORM",
+    "schema": "public"
+  },
+  "enums": {
+    "organization_role": [
+      "owner",
+      "admin",
+      "member"
+    ],
+    "project_role": [
+      "owner",
+      "lead",
+      "contributor",
+      "viewer"
+    ],
+    "project_status": [
+      "active",
+      "completed",
+      "archived"
+    ],
+    "task_status": [
+      "todo",
+      "in_progress",
+      "done"
+    ],
+    "task_priority": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "node_type": [
+      "folder",
+      "file",
+      "upload"
+    ],
+    "invite_status": [
+      "pending",
+      "accepted",
+      "declined",
+      "expired"
+    ],
+    "notification_type": [
+      "task_assigned",
+      "task_updated",
+      "discussion_message",
+      "invite_received",
+      "system"
+    ]
+  },
+  "entities": [
+    {
+      "name": "User",
+      "table": "users",
+      "description": "Application user (auth + profile)",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "email",
+          "type": "varchar(255)",
+          "unique": true,
+          "nullable": false
+        },
+        {
+          "name": "password_hash",
+          "type": "varchar(255)",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "varchar(120)",
+          "nullable": false
+        },
+        {
+          "name": "avatar_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "timezone",
+          "type": "varchar(64)",
+          "nullable": true
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "name": "last_login_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "name": "UserPreference",
+      "table": "user_preferences",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "fk": "users.id",
+          "unique": true
+        },
+        {
+          "name": "default_org_id",
+          "type": "uuid",
+          "fk": "organizations.id",
+          "nullable": true
+        },
+        {
+          "name": "default_project_id",
+          "type": "uuid",
+          "fk": "projects.id",
+          "nullable": true
+        },
+        {
+          "name": "settings_json",
+          "type": "jsonb",
+          "default": {}
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "name": "AuthSession",
+      "table": "auth_sessions",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "refresh_token_hash",
+          "type": "varchar(255)",
+          "nullable": false
+        },
+        {
+          "name": "user_agent",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "ip_address",
+          "type": "inet",
+          "nullable": true
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "revoked_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "name": "Organization",
+      "table": "organizations",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "name",
+          "type": "varchar(150)",
+          "nullable": false
+        },
+        {
+          "name": "slug",
+          "type": "varchar(80)",
+          "unique": true,
+          "nullable": false
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "name": "OrganizationMembership",
+      "table": "organization_memberships",
+      "description": "User enrolled in organization",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "fk": "organizations.id"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "role",
+          "type": "organization_role",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "varchar(20)",
+          "default": "active"
+        },
+        {
+          "name": "joined_at",
+          "type": "timestamptz"
+        }
+      ],
+      "constraints": [
+        "unique(organization_id, user_id)"
+      ]
+    },
+    {
+      "name": "Invite",
+      "table": "invites",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "fk": "organizations.id"
+        },
+        {
+          "name": "email",
+          "type": "varchar(255)",
+          "nullable": false
+        },
+        {
+          "name": "token",
+          "type": "varchar(255)",
+          "unique": true,
+          "nullable": false
+        },
+        {
+          "name": "role",
+          "type": "organization_role",
+          "nullable": false
+        },
+        {
+          "name": "invited_by",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "status",
+          "type": "invite_status",
+          "default": "pending"
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "accepted_by_user_id",
+          "type": "uuid",
+          "fk": "users.id",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "name": "Team",
+      "table": "teams",
+      "description": "Team inside organization",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "fk": "organizations.id"
+        },
+        {
+          "name": "name",
+          "type": "varchar(120)",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "constraints": [
+        "unique(organization_id, name)"
+      ]
+    },
+    {
+      "name": "Group",
+      "table": "groups",
+      "description": "Optional sub-group under team",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "team_id",
+          "type": "uuid",
+          "fk": "teams.id"
+        },
+        {
+          "name": "name",
+          "type": "varchar(120)",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ],
+      "constraints": [
+        "unique(team_id, name)"
+      ]
+    },
+    {
+      "name": "TeamMembership",
+      "table": "team_memberships",
+      "description": "Team member with granular permissions",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "team_id",
+          "type": "uuid",
+          "fk": "teams.id"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "title",
+          "type": "varchar(120)",
+          "nullable": false
+        },
+        {
+          "name": "perm_read",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "name": "perm_create",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "name": "perm_update",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "name": "perm_delete",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "constraints": [
+        "unique(team_id, user_id)"
+      ]
+    },
+    {
+      "name": "GroupMembership",
+      "table": "group_memberships",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "group_id",
+          "type": "uuid",
+          "fk": "groups.id"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ],
+      "constraints": [
+        "unique(group_id, user_id)"
+      ]
+    },
+    {
+      "name": "Project",
+      "table": "projects",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "fk": "organizations.id"
+        },
+        {
+          "name": "name",
+          "type": "varchar(180)",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "status",
+          "type": "project_status",
+          "default": "active"
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "constraints": [
+        "unique(organization_id, name)"
+      ]
+    },
+    {
+      "name": "ProjectMembership",
+      "table": "project_memberships",
+      "description": "User enrollment in project",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "fk": "projects.id"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "role",
+          "type": "project_role",
+          "default": "contributor"
+        },
+        {
+          "name": "joined_at",
+          "type": "timestamptz"
+        }
+      ],
+      "constraints": [
+        "unique(project_id, user_id)"
+      ]
+    },
+    {
+      "name": "ProjectTeam",
+      "table": "project_teams",
+      "description": "Many-to-many between projects and teams",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "fk": "projects.id"
+        },
+        {
+          "name": "team_id",
+          "type": "uuid",
+          "fk": "teams.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ],
+      "constraints": [
+        "unique(project_id, team_id)"
+      ]
+    },
+    {
+      "name": "Board",
+      "table": "boards",
+      "description": "Kanban board for project",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "fk": "projects.id"
+        },
+        {
+          "name": "name",
+          "type": "varchar(120)",
+          "default": "Main Board"
+        },
+        {
+          "name": "is_default",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "name": "BoardColumn",
+      "table": "board_columns",
+      "description": "Kanban columns",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "board_id",
+          "type": "uuid",
+          "fk": "boards.id"
+        },
+        {
+          "name": "name",
+          "type": "varchar(64)",
+          "nullable": false
+        },
+        {
+          "name": "slug",
+          "type": "varchar(32)",
+          "nullable": false
+        },
+        {
+          "name": "position",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "is_terminal",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "constraints": [
+        "unique(board_id, slug)",
+        "unique(board_id, position)"
+      ]
+    },
+    {
+      "name": "Task",
+      "table": "tasks",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "fk": "projects.id"
+        },
+        {
+          "name": "board_id",
+          "type": "uuid",
+          "fk": "boards.id"
+        },
+        {
+          "name": "column_id",
+          "type": "uuid",
+          "fk": "board_columns.id"
+        },
+        {
+          "name": "title",
+          "type": "varchar(255)",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "status",
+          "type": "task_status",
+          "default": "todo"
+        },
+        {
+          "name": "priority",
+          "type": "task_priority",
+          "default": "medium"
+        },
+        {
+          "name": "position",
+          "type": "integer",
+          "default": 0
+        },
+        {
+          "name": "due_date",
+          "type": "date",
+          "nullable": true
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "name": "TaskAssignee",
+      "table": "task_assignees",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "task_id",
+          "type": "uuid",
+          "fk": "tasks.id"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ],
+      "constraints": [
+        "unique(task_id, user_id)"
+      ]
+    },
+    {
+      "name": "TaskWatcher",
+      "table": "task_watchers",
+      "description": "Users notified on task updates",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "task_id",
+          "type": "uuid",
+          "fk": "tasks.id"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ],
+      "constraints": [
+        "unique(task_id, user_id)"
+      ]
+    },
+    {
+      "name": "TaskComment",
+      "table": "task_comments",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "task_id",
+          "type": "uuid",
+          "fk": "tasks.id"
+        },
+        {
+          "name": "author_id",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "content",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "name": "Discussion",
+      "table": "discussions",
+      "description": "Thread (organization-level or project-linked)",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "fk": "organizations.id"
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "fk": "projects.id",
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "type": "varchar(255)",
+          "nullable": false
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "last_message_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "name": "DiscussionMessage",
+      "table": "discussion_messages",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "discussion_id",
+          "type": "uuid",
+          "fk": "discussions.id"
+        },
+        {
+          "name": "author_id",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "content",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "edited_at",
+          "type": "timestamptz",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "name": "FileNode",
+      "table": "file_nodes",
+      "description": "Hierarchical folders, rich docs, and uploads",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "fk": "projects.id"
+        },
+        {
+          "name": "parent_id",
+          "type": "uuid",
+          "fk": "file_nodes.id",
+          "nullable": true
+        },
+        {
+          "name": "type",
+          "type": "node_type",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "varchar(255)",
+          "nullable": false
+        },
+        {
+          "name": "content_html",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "storage_path",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "mime_type",
+          "type": "varchar(120)",
+          "nullable": true
+        },
+        {
+          "name": "size_bytes",
+          "type": "bigint",
+          "nullable": true
+        },
+        {
+          "name": "uploaded_by",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "is_archived",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "constraints": [
+        "check(parent_id <> id)"
+      ]
+    },
+    {
+      "name": "FileNodeMemberAccess",
+      "table": "file_node_member_access",
+      "description": "Optional per-node allowed members",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "node_id",
+          "type": "uuid",
+          "fk": "file_nodes.id"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ],
+      "constraints": [
+        "unique(node_id, user_id)"
+      ]
+    },
+    {
+      "name": "Notification",
+      "table": "notifications",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "fk": "users.id"
+        },
+        {
+          "name": "type",
+          "type": "notification_type"
+        },
+        {
+          "name": "title",
+          "type": "varchar(150)",
+          "nullable": false
+        },
+        {
+          "name": "message",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "entity_type",
+          "type": "varchar(40)",
+          "nullable": true
+        },
+        {
+          "name": "entity_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "is_read",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "name": "read_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "name": "ActivityLog",
+      "table": "activity_logs",
+      "description": "Audit and feed events",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "pk": true
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "fk": "organizations.id"
+        },
+        {
+          "name": "project_id",
+          "type": "uuid",
+          "fk": "projects.id",
+          "nullable": true
+        },
+        {
+          "name": "actor_user_id",
+          "type": "uuid",
+          "fk": "users.id",
+          "nullable": true
+        },
+        {
+          "name": "action",
+          "type": "varchar(80)",
+          "nullable": false
+        },
+        {
+          "name": "entity_type",
+          "type": "varchar(40)",
+          "nullable": false
+        },
+        {
+          "name": "entity_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "default": {}
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "from": "OrganizationMembership.organization_id",
+      "to": "Organization.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "OrganizationMembership.user_id",
+      "to": "User.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "Team.organization_id",
+      "to": "Organization.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "TeamMembership.team_id",
+      "to": "Team.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "TeamMembership.user_id",
+      "to": "User.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "Group.team_id",
+      "to": "Team.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "Project.organization_id",
+      "to": "Organization.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "ProjectMembership.project_id",
+      "to": "Project.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "ProjectMembership.user_id",
+      "to": "User.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "ProjectTeam.project_id",
+      "to": "Project.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "ProjectTeam.team_id",
+      "to": "Team.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "Board.project_id",
+      "to": "Project.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "BoardColumn.board_id",
+      "to": "Board.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "Task.project_id",
+      "to": "Project.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "Task.column_id",
+      "to": "BoardColumn.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "TaskAssignee.task_id",
+      "to": "Task.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "TaskAssignee.user_id",
+      "to": "User.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "Discussion.organization_id",
+      "to": "Organization.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "Discussion.project_id",
+      "to": "Project.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "DiscussionMessage.discussion_id",
+      "to": "Discussion.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "FileNode.project_id",
+      "to": "Project.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "FileNode.parent_id",
+      "to": "FileNode.id",
+      "cardinality": "many-to-one"
+    },
+    {
+      "from": "Notification.user_id",
+      "to": "User.id",
+      "cardinality": "many-to-one"
+    }
+  ],
+  "indexes": [
+    "index users(email)",
+    "index organization_memberships(organization_id, role)",
+    "index project_memberships(project_id, role)",
+    "index projects(organization_id, status)",
+    "index tasks(project_id, status, due_date)",
+    "index tasks(column_id, position)",
+    "index discussions(organization_id, updated_at desc)",
+    "index discussion_messages(discussion_id, created_at)",
+    "index file_nodes(project_id, parent_id, is_archived)",
+    "index notifications(user_id, is_read, created_at desc)",
+    "gin index activity_logs(payload)",
+    "gin index user_preferences(settings_json)"
+  ],
+  "djangoModelingNotes": {
+    "baseAbstractModel": [
+      "id UUID primary key",
+      "created_at",
+      "updated_at",
+      "created_by nullable FK",
+      "updated_by nullable FK"
+    ],
+    "recommendedApps": [
+      "accounts",
+      "organizations",
+      "teams",
+      "projects",
+      "kanban",
+      "files",
+      "discussions",
+      "notifications",
+      "activity"
+    ],
+    "softDeletePolicy": {
+      "projects": "status=archived",
+      "file_nodes": "is_archived=true",
+      "others": "optional deleted_at"
+    }
+  }
+}

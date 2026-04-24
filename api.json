@@ -1,0 +1,1074 @@
+{
+  "project": "Trust & Peace",
+  "version": "1.0.0",
+  "generatedOn": "2026-04-23",
+  "backend": {
+    "framework": "Django 5 + Django REST Framework",
+    "database": "PostgreSQL",
+    "apiBase": "/api/v1",
+    "primaryAuth": "JWT access token + refresh token",
+    "secondaryAuth": "HttpOnly secure cookie for refresh token",
+    "timezone": "UTC",
+    "dateFormat": "ISO-8601"
+  },
+  "standards": {
+    "pagination": {
+      "default": "cursor",
+      "responseShape": {
+        "count": "number",
+        "next": "string|null",
+        "previous": "string|null",
+        "results": "array"
+      }
+    },
+    "errorResponse": {
+      "code": "string",
+      "message": "string",
+      "details": "object|array|null",
+      "requestId": "string"
+    },
+    "idStrategy": "uuid",
+    "softDelete": true,
+    "auditFields": [
+      "created_at",
+      "updated_at",
+      "created_by",
+      "updated_by"
+    ]
+  },
+  "endpoints": [
+    {
+      "id": "AUTH_REGISTER",
+      "module": "auth",
+      "method": "POST",
+      "path": "/api/v1/auth/register",
+      "auth": "public",
+      "priority": "P0",
+      "description": "Register user account",
+      "body": {
+        "name": "string",
+        "email": "string",
+        "password": "string",
+        "organization_name": "string|null"
+      },
+      "responses": {
+        "201": {
+          "user": "User",
+          "tokens": "AuthTokens"
+        }
+      },
+      "frontendUsage": [
+        "app/register/page.tsx"
+      ]
+    },
+    {
+      "id": "AUTH_LOGIN",
+      "module": "auth",
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "auth": "public",
+      "priority": "P0",
+      "description": "Login with email/password",
+      "body": {
+        "email": "string",
+        "password": "string"
+      },
+      "responses": {
+        "200": {
+          "user": "User",
+          "tokens": "AuthTokens"
+        }
+      },
+      "frontendUsage": [
+        "app/login/page.tsx"
+      ]
+    },
+    {
+      "id": "AUTH_REFRESH",
+      "module": "auth",
+      "method": "POST",
+      "path": "/api/v1/auth/refresh",
+      "auth": "refresh-token",
+      "priority": "P0",
+      "description": "Refresh access token"
+    },
+    {
+      "id": "AUTH_LOGOUT",
+      "module": "auth",
+      "method": "POST",
+      "path": "/api/v1/auth/logout",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Invalidate refresh token/session"
+    },
+    {
+      "id": "AUTH_ME",
+      "module": "auth",
+      "method": "GET",
+      "path": "/api/v1/auth/me",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Get current signed-in user and memberships"
+    },
+    {
+      "id": "AUTH_FORGOT_PASSWORD",
+      "module": "auth",
+      "method": "POST",
+      "path": "/api/v1/auth/password/forgot",
+      "auth": "public",
+      "priority": "P1",
+      "description": "Send reset link",
+      "body": {
+        "email": "string"
+      }
+    },
+    {
+      "id": "AUTH_RESET_PASSWORD",
+      "module": "auth",
+      "method": "POST",
+      "path": "/api/v1/auth/password/reset",
+      "auth": "public",
+      "priority": "P1",
+      "description": "Reset password using token",
+      "body": {
+        "token": "string",
+        "password": "string"
+      }
+    },
+    {
+      "id": "USER_PROFILE_GET",
+      "module": "users",
+      "method": "GET",
+      "path": "/api/v1/users/me",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Current profile"
+    },
+    {
+      "id": "USER_PROFILE_PATCH",
+      "module": "users",
+      "method": "PATCH",
+      "path": "/api/v1/users/me",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Update profile",
+      "body": {
+        "name": "string|null",
+        "avatar": "string|null",
+        "timezone": "string|null"
+      }
+    },
+    {
+      "id": "USER_PREFERENCES_GET",
+      "module": "users",
+      "method": "GET",
+      "path": "/api/v1/users/me/preferences",
+      "auth": "bearer",
+      "priority": "P2",
+      "description": "Get UI preferences"
+    },
+    {
+      "id": "USER_PREFERENCES_PATCH",
+      "module": "users",
+      "method": "PATCH",
+      "path": "/api/v1/users/me/preferences",
+      "auth": "bearer",
+      "priority": "P2",
+      "description": "Update UI preferences"
+    },
+    {
+      "id": "ORG_LIST",
+      "module": "organizations",
+      "method": "GET",
+      "path": "/api/v1/organizations",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Organizations current user belongs to"
+    },
+    {
+      "id": "ORG_CREATE",
+      "module": "organizations",
+      "method": "POST",
+      "path": "/api/v1/organizations",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Create organization",
+      "body": {
+        "name": "string",
+        "slug": "string"
+      }
+    },
+    {
+      "id": "ORG_GET",
+      "module": "organizations",
+      "method": "GET",
+      "path": "/api/v1/organizations/{org_id}",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Organization details",
+      "frontendUsage": [
+        "app/settings/page.tsx"
+      ]
+    },
+    {
+      "id": "ORG_PATCH",
+      "module": "organizations",
+      "method": "PATCH",
+      "path": "/api/v1/organizations/{org_id}",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Update organization details"
+    },
+    {
+      "id": "ORG_MEMBERS_LIST",
+      "module": "organizations",
+      "method": "GET",
+      "path": "/api/v1/organizations/{org_id}/members",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "List org members",
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "app/settings/page.tsx"
+      ]
+    },
+    {
+      "id": "ORG_MEMBERS_ADD",
+      "module": "organizations",
+      "method": "POST",
+      "path": "/api/v1/organizations/{org_id}/members",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Add existing user into organization",
+      "body": {
+        "user_id": "uuid",
+        "role": "owner|admin|member"
+      }
+    },
+    {
+      "id": "ORG_MEMBER_REMOVE",
+      "module": "organizations",
+      "method": "DELETE",
+      "path": "/api/v1/organizations/{org_id}/members/{membership_id}",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Remove member from organization"
+    },
+    {
+      "id": "ORG_INVITE_CREATE",
+      "module": "invites",
+      "method": "POST",
+      "path": "/api/v1/organizations/{org_id}/invites",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Invite user by email",
+      "body": {
+        "email": "string",
+        "role": "owner|admin|member",
+        "team_ids": [
+          "uuid"
+        ]
+      },
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "app/settings/page.tsx"
+      ]
+    },
+    {
+      "id": "ORG_INVITE_LIST",
+      "module": "invites",
+      "method": "GET",
+      "path": "/api/v1/organizations/{org_id}/invites",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "List pending invites"
+    },
+    {
+      "id": "INVITE_ACCEPT",
+      "module": "invites",
+      "method": "POST",
+      "path": "/api/v1/invites/{token}/accept",
+      "auth": "bearer-or-public-token",
+      "priority": "P0",
+      "description": "Accept invite"
+    },
+    {
+      "id": "INVITE_DECLINE",
+      "module": "invites",
+      "method": "POST",
+      "path": "/api/v1/invites/{token}/decline",
+      "auth": "bearer-or-public-token",
+      "priority": "P2",
+      "description": "Decline invite"
+    },
+    {
+      "id": "TEAM_LIST",
+      "module": "teams",
+      "method": "GET",
+      "path": "/api/v1/organizations/{org_id}/teams",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "List teams",
+      "frontendUsage": [
+        "app/settings/page.tsx"
+      ]
+    },
+    {
+      "id": "TEAM_CREATE",
+      "module": "teams",
+      "method": "POST",
+      "path": "/api/v1/organizations/{org_id}/teams",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Create team",
+      "body": {
+        "name": "string",
+        "description": "string"
+      },
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "app/settings/page.tsx"
+      ]
+    },
+    {
+      "id": "TEAM_PATCH",
+      "module": "teams",
+      "method": "PATCH",
+      "path": "/api/v1/teams/{team_id}",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Update team"
+    },
+    {
+      "id": "TEAM_DELETE",
+      "module": "teams",
+      "method": "DELETE",
+      "path": "/api/v1/teams/{team_id}",
+      "auth": "bearer",
+      "priority": "P2",
+      "description": "Delete team"
+    },
+    {
+      "id": "TEAM_MEMBERS_LIST",
+      "module": "teams",
+      "method": "GET",
+      "path": "/api/v1/teams/{team_id}/members",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "List team members"
+    },
+    {
+      "id": "TEAM_MEMBER_ADD",
+      "module": "teams",
+      "method": "POST",
+      "path": "/api/v1/teams/{team_id}/members",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Add team member with permission set",
+      "body": {
+        "user_id": "uuid",
+        "title": "string",
+        "permissions": {
+          "read": "boolean",
+          "create": "boolean",
+          "update": "boolean",
+          "delete": "boolean"
+        }
+      },
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "app/settings/page.tsx"
+      ]
+    },
+    {
+      "id": "TEAM_MEMBER_PATCH",
+      "module": "teams",
+      "method": "PATCH",
+      "path": "/api/v1/teams/{team_id}/members/{membership_id}",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Update team member title/permissions"
+    },
+    {
+      "id": "TEAM_MEMBER_DELETE",
+      "module": "teams",
+      "method": "DELETE",
+      "path": "/api/v1/teams/{team_id}/members/{membership_id}",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Remove team member"
+    },
+    {
+      "id": "GROUP_LIST",
+      "module": "groups",
+      "method": "GET",
+      "path": "/api/v1/teams/{team_id}/groups",
+      "auth": "bearer",
+      "priority": "P2",
+      "description": "List functional groups/sub-teams"
+    },
+    {
+      "id": "GROUP_CREATE",
+      "module": "groups",
+      "method": "POST",
+      "path": "/api/v1/teams/{team_id}/groups",
+      "auth": "bearer",
+      "priority": "P2",
+      "description": "Create group"
+    },
+    {
+      "id": "GROUP_MEMBER_ADD",
+      "module": "groups",
+      "method": "POST",
+      "path": "/api/v1/groups/{group_id}/members",
+      "auth": "bearer",
+      "priority": "P2",
+      "description": "Add member to group"
+    },
+    {
+      "id": "PROJECT_LIST",
+      "module": "projects",
+      "method": "GET",
+      "path": "/api/v1/organizations/{org_id}/projects",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "List projects",
+      "query": {
+        "status": "active|completed|archived|all",
+        "search": "string|null"
+      },
+      "frontendUsage": [
+        "app/projects/page.tsx",
+        "app/dashboard/page.tsx"
+      ]
+    },
+    {
+      "id": "PROJECT_CREATE",
+      "module": "projects",
+      "method": "POST",
+      "path": "/api/v1/organizations/{org_id}/projects",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Create project",
+      "body": {
+        "name": "string",
+        "description": "string",
+        "member_ids": [
+          "uuid"
+        ],
+        "team_ids": [
+          "uuid"
+        ]
+      },
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "app/projects/page.tsx"
+      ]
+    },
+    {
+      "id": "PROJECT_GET",
+      "module": "projects",
+      "method": "GET",
+      "path": "/api/v1/projects/{project_id}",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Get project details",
+      "frontendUsage": [
+        "app/projects/[id]/page.tsx"
+      ]
+    },
+    {
+      "id": "PROJECT_PATCH",
+      "module": "projects",
+      "method": "PATCH",
+      "path": "/api/v1/projects/{project_id}",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Update project details"
+    },
+    {
+      "id": "PROJECT_ARCHIVE",
+      "module": "projects",
+      "method": "POST",
+      "path": "/api/v1/projects/{project_id}/archive",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Archive project",
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "app/projects/[id]/page.tsx",
+        "app/archive/page.tsx"
+      ]
+    },
+    {
+      "id": "PROJECT_RESTORE",
+      "module": "projects",
+      "method": "POST",
+      "path": "/api/v1/projects/{project_id}/restore",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Restore archived project",
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "app/archive/page.tsx"
+      ]
+    },
+    {
+      "id": "PROJECT_MEMBERS_LIST",
+      "module": "projects",
+      "method": "GET",
+      "path": "/api/v1/projects/{project_id}/members",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "List project members"
+    },
+    {
+      "id": "PROJECT_MEMBER_ENROLL",
+      "module": "projects",
+      "method": "POST",
+      "path": "/api/v1/projects/{project_id}/members",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Enroll user into project",
+      "body": {
+        "user_id": "uuid",
+        "role": "owner|lead|contributor|viewer"
+      }
+    },
+    {
+      "id": "PROJECT_MEMBER_REMOVE",
+      "module": "projects",
+      "method": "DELETE",
+      "path": "/api/v1/projects/{project_id}/members/{membership_id}",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Remove project member"
+    },
+    {
+      "id": "PROJECT_TEAM_LINK",
+      "module": "projects",
+      "method": "POST",
+      "path": "/api/v1/projects/{project_id}/teams/{team_id}",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Link team to project",
+      "frontendUsage": [
+        "components/AppProvider.tsx"
+      ]
+    },
+    {
+      "id": "PROJECT_TEAM_UNLINK",
+      "module": "projects",
+      "method": "DELETE",
+      "path": "/api/v1/projects/{project_id}/teams/{team_id}",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Unlink team from project"
+    },
+    {
+      "id": "BOARD_LIST",
+      "module": "kanban",
+      "method": "GET",
+      "path": "/api/v1/projects/{project_id}/boards",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "List boards for a project"
+    },
+    {
+      "id": "BOARD_CREATE",
+      "module": "kanban",
+      "method": "POST",
+      "path": "/api/v1/projects/{project_id}/boards",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Create board"
+    },
+    {
+      "id": "BOARD_COLUMNS_LIST",
+      "module": "kanban",
+      "method": "GET",
+      "path": "/api/v1/boards/{board_id}/columns",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "List columns (Todo, In Progress, Done default)",
+      "frontendUsage": [
+        "app/projects/[id]/page.tsx"
+      ]
+    },
+    {
+      "id": "TASK_LIST",
+      "module": "tasks",
+      "method": "GET",
+      "path": "/api/v1/projects/{project_id}/tasks",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "List project tasks",
+      "query": {
+        "status": "todo|in_progress|done|all",
+        "assignee_id": "uuid|null",
+        "due_from": "date|null",
+        "due_to": "date|null"
+      },
+      "frontendUsage": [
+        "app/projects/[id]/page.tsx",
+        "app/todos/page.tsx",
+        "app/calendar/page.tsx",
+        "app/dashboard/page.tsx"
+      ]
+    },
+    {
+      "id": "TASK_CREATE",
+      "module": "tasks",
+      "method": "POST",
+      "path": "/api/v1/projects/{project_id}/tasks",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Create task",
+      "body": {
+        "title": "string",
+        "description": "string|null",
+        "status": "todo|in_progress|done",
+        "priority": "low|medium|high",
+        "due_date": "date|null",
+        "assignee_ids": [
+          "uuid"
+        ],
+        "notify_user_ids": [
+          "uuid"
+        ]
+      },
+      "frontendUsage": [
+        "components/AppProvider.tsx"
+      ]
+    },
+    {
+      "id": "TASK_GET",
+      "module": "tasks",
+      "method": "GET",
+      "path": "/api/v1/tasks/{task_id}",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Task details"
+    },
+    {
+      "id": "TASK_PATCH",
+      "module": "tasks",
+      "method": "PATCH",
+      "path": "/api/v1/tasks/{task_id}",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Update task fields including status and due date",
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "app/projects/[id]/page.tsx",
+        "app/todos/page.tsx",
+        "app/calendar/page.tsx"
+      ]
+    },
+    {
+      "id": "TASK_MOVE",
+      "module": "tasks",
+      "method": "POST",
+      "path": "/api/v1/tasks/{task_id}/move",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Atomic status and position update for drag/drop",
+      "body": {
+        "status": "todo|in_progress|done",
+        "position": "number"
+      }
+    },
+    {
+      "id": "TASK_ASSIGNEES_REPLACE",
+      "module": "tasks",
+      "method": "PUT",
+      "path": "/api/v1/tasks/{task_id}/assignees",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Replace full assignee list",
+      "body": {
+        "assignee_ids": [
+          "uuid"
+        ]
+      },
+      "frontendUsage": [
+        "components/AppProvider.tsx"
+      ]
+    },
+    {
+      "id": "TASK_WATCHERS_REPLACE",
+      "module": "tasks",
+      "method": "PUT",
+      "path": "/api/v1/tasks/{task_id}/watchers",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Users to notify on task changes",
+      "body": {
+        "watcher_ids": [
+          "uuid"
+        ]
+      }
+    },
+    {
+      "id": "TASK_COMMENTS_LIST",
+      "module": "tasks",
+      "method": "GET",
+      "path": "/api/v1/tasks/{task_id}/comments",
+      "auth": "bearer",
+      "priority": "P2",
+      "description": "Task comments list"
+    },
+    {
+      "id": "TASK_COMMENTS_CREATE",
+      "module": "tasks",
+      "method": "POST",
+      "path": "/api/v1/tasks/{task_id}/comments",
+      "auth": "bearer",
+      "priority": "P2",
+      "description": "Add task comment"
+    },
+    {
+      "id": "DISCUSSION_LIST",
+      "module": "discussions",
+      "method": "GET",
+      "path": "/api/v1/organizations/{org_id}/discussions",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "List discussions, optionally filtered by project",
+      "query": {
+        "project_id": "uuid|null",
+        "search": "string|null"
+      },
+      "frontendUsage": [
+        "app/discussions/page.tsx"
+      ]
+    },
+    {
+      "id": "DISCUSSION_CREATE",
+      "module": "discussions",
+      "method": "POST",
+      "path": "/api/v1/organizations/{org_id}/discussions",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Create discussion thread",
+      "body": {
+        "title": "string",
+        "project_id": "uuid|null"
+      },
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "app/discussions/page.tsx"
+      ]
+    },
+    {
+      "id": "DISCUSSION_PATCH",
+      "module": "discussions",
+      "method": "PATCH",
+      "path": "/api/v1/discussions/{discussion_id}",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Rename or re-link discussion"
+    },
+    {
+      "id": "DISCUSSION_MESSAGES_LIST",
+      "module": "discussions",
+      "method": "GET",
+      "path": "/api/v1/discussions/{discussion_id}/messages",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Paginated messages",
+      "query": {
+        "cursor": "string|null",
+        "limit": "number"
+      },
+      "frontendUsage": [
+        "app/discussions/page.tsx"
+      ]
+    },
+    {
+      "id": "DISCUSSION_MESSAGES_CREATE",
+      "module": "discussions",
+      "method": "POST",
+      "path": "/api/v1/discussions/{discussion_id}/messages",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Send message",
+      "body": {
+        "content": "string"
+      },
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "app/discussions/page.tsx"
+      ]
+    },
+    {
+      "id": "FILE_TREE_LIST",
+      "module": "files",
+      "method": "GET",
+      "path": "/api/v1/projects/{project_id}/nodes",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "List files/folders/uploads",
+      "query": {
+        "parent_id": "uuid|null",
+        "include_archived": "boolean"
+      },
+      "frontendUsage": [
+        "app/projects/[id]/page.tsx",
+        "app/archive/page.tsx"
+      ]
+    },
+    {
+      "id": "FILE_NODE_CREATE",
+      "module": "files",
+      "method": "POST",
+      "path": "/api/v1/projects/{project_id}/nodes",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Create folder or rich text document",
+      "body": {
+        "type": "folder|file",
+        "name": "string",
+        "parent_id": "uuid|null",
+        "content": "string|null",
+        "attached_member_ids": [
+          "uuid"
+        ]
+      },
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "app/projects/[id]/page.tsx"
+      ]
+    },
+    {
+      "id": "FILE_UPLOAD",
+      "module": "files",
+      "method": "POST",
+      "path": "/api/v1/projects/{project_id}/uploads",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Upload binary file",
+      "contentType": "multipart/form-data",
+      "body": {
+        "file": "binary",
+        "parent_id": "uuid|null",
+        "attached_member_ids": [
+          "uuid"
+        ]
+      },
+      "frontendUsage": [
+        "app/projects/[id]/page.tsx"
+      ]
+    },
+    {
+      "id": "FILE_NODE_PATCH",
+      "module": "files",
+      "method": "PATCH",
+      "path": "/api/v1/nodes/{node_id}",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Rename/move/update metadata"
+    },
+    {
+      "id": "FILE_CONTENT_PATCH",
+      "module": "files",
+      "method": "PATCH",
+      "path": "/api/v1/nodes/{node_id}/content",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Update rich text document body",
+      "body": {
+        "content": "string"
+      },
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "components/DocumentEditor.tsx"
+      ]
+    },
+    {
+      "id": "FILE_DOWNLOAD",
+      "module": "files",
+      "method": "GET",
+      "path": "/api/v1/nodes/{node_id}/download",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Download uploaded file"
+    },
+    {
+      "id": "FILE_ARCHIVE",
+      "module": "files",
+      "method": "POST",
+      "path": "/api/v1/nodes/{node_id}/archive",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Archive file/folder",
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "app/projects/[id]/page.tsx",
+        "app/archive/page.tsx"
+      ]
+    },
+    {
+      "id": "FILE_RESTORE",
+      "module": "files",
+      "method": "POST",
+      "path": "/api/v1/nodes/{node_id}/restore",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Restore archived file/folder",
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "app/archive/page.tsx"
+      ]
+    },
+    {
+      "id": "ARCHIVE_LIST",
+      "module": "archive",
+      "method": "GET",
+      "path": "/api/v1/archive",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Unified archive query for projects and nodes",
+      "query": {
+        "type": "project|node|all",
+        "project_id": "uuid|null"
+      },
+      "frontendUsage": [
+        "app/archive/page.tsx"
+      ]
+    },
+    {
+      "id": "NOTIFICATION_LIST",
+      "module": "notifications",
+      "method": "GET",
+      "path": "/api/v1/notifications",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "User notifications list",
+      "query": {
+        "unread_only": "boolean",
+        "cursor": "string|null"
+      },
+      "frontendUsage": [
+        "components/TopNav.tsx"
+      ]
+    },
+    {
+      "id": "NOTIFICATION_MARK_READ",
+      "module": "notifications",
+      "method": "PATCH",
+      "path": "/api/v1/notifications/{notification_id}/read",
+      "auth": "bearer",
+      "priority": "P0",
+      "description": "Mark one notification as read",
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "components/TopNav.tsx"
+      ]
+    },
+    {
+      "id": "NOTIFICATION_MARK_ALL_READ",
+      "module": "notifications",
+      "method": "POST",
+      "path": "/api/v1/notifications/read-all",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Mark all notifications read"
+    },
+    {
+      "id": "NOTIFICATION_CLEAR_ALL",
+      "module": "notifications",
+      "method": "DELETE",
+      "path": "/api/v1/notifications",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Clear all notifications for current user",
+      "frontendUsage": [
+        "components/AppProvider.tsx",
+        "components/TopNav.tsx"
+      ]
+    },
+    {
+      "id": "CALENDAR_EVENTS",
+      "module": "calendar",
+      "method": "GET",
+      "path": "/api/v1/calendar/events",
+      "auth": "bearer",
+      "priority": "P1",
+      "description": "Calendar event projection from tasks + meetings",
+      "query": {
+        "from": "date",
+        "to": "date",
+        "project_id": "uuid|null"
+      },
+      "frontendUsage": [
+        "app/calendar/page.tsx"
+      ]
+    },
+    {
+      "id": "GLOBAL_SEARCH",
+      "module": "search",
+      "method": "GET",
+      "path": "/api/v1/search",
+      "auth": "bearer",
+      "priority": "P2",
+      "description": "Cross-entity search for top nav",
+      "query": {
+        "q": "string",
+        "types": "project,task,file,discussion,user"
+      },
+      "frontendUsage": [
+        "components/TopNav.tsx"
+      ]
+    },
+    {
+      "id": "ACTIVITY_FEED",
+      "module": "activity",
+      "method": "GET",
+      "path": "/api/v1/organizations/{org_id}/activity",
+      "auth": "bearer",
+      "priority": "P2",
+      "description": "Recent activity stream for dashboard",
+      "frontendUsage": [
+        "app/dashboard/page.tsx"
+      ]
+    }
+  ],
+  "realtime": {
+    "transport": "WebSocket",
+    "channels": [
+      {
+        "name": "notifications",
+        "path": "/ws/notifications",
+        "events": [
+          "notification.created",
+          "notification.read"
+        ]
+      },
+      {
+        "name": "discussion_messages",
+        "path": "/ws/discussions/{discussion_id}",
+        "events": [
+          "message.created",
+          "typing.started",
+          "typing.stopped"
+        ]
+      },
+      {
+        "name": "project_board",
+        "path": "/ws/projects/{project_id}/board",
+        "events": [
+          "task.created",
+          "task.updated",
+          "task.moved",
+          "task.archived"
+        ]
+      }
+    ]
+  },
+  "deliveryOrder": [
+    "P0: auth + organizations + users + projects + teams + tasks + discussions + files + notifications",
+    "P1: archive aggregation + calendar projection + password reset + project details polish",
+    "P2: groups, activity feed, search, advanced comments and collaboration"
+  ]
+}

@@ -1,0 +1,494 @@
+"use client";
+import React, { createContext, useContext, useState, ReactNode } from "react";
+import { X } from "lucide-react";
+import Image from "next/image";
+
+export type User = { id: string; name: string; avatar: string; color: string; role: string; };
+export type Task = { id: string; projectId: string; title: string; status: 'Todo' | 'In Progress' | 'Done'; assigneeIds: string[]; notifyIds?: string[]; dueDate: string; priority: 'Low' | 'Medium' | 'High'; };
+export type Project = { id: string; name: string; description: string; status: 'Active' | 'Completed' | 'Archived'; teamIds: string[]; memberIds: string[]; };
+export type AppNotification = { id: string; userId: string; message: string; read: boolean; timestamp: string; taskId?: string; };
+export type Discussion = { id: string; projectId: string | null; title: string; updatedAt: string; };
+export type Message = { id: string; discussionId: string; authorId: string; content: string; timestamp: string; };
+export type Organization = { id: string; name: string; };
+export type TeamMember = { userId: string; title: string; permissions: { read: boolean; create: boolean; update: boolean; delete: boolean; }; };
+export type Team = { id: string; name: string; description: string; orgId: string; members: TeamMember[]; };
+export type FileNode = { id: string; projectId: string; type: 'file' | 'folder' | 'upload'; name: string; parentId: string | null; content?: string; fileData?: string; fileType?: string; uploaderId: string; attachedMemberIds?: string[]; isArchived?: boolean; };
+
+export function formatFriendlyDate(dateStr: string) {
+  if (!dateStr) return '';
+  if (dateStr === '2026-04-23') return 'Today';
+  if (dateStr === '2026-04-24') return 'Tomorrow';
+  if (dateStr === '2026-04-22') return 'Yesterday';
+  const d = new Date(dateStr);
+  if (isNaN(d.valueOf())) return dateStr;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+type AppContextType = {
+  currentUser: User | null;
+  login: (id: string) => void;
+  logout: () => void;
+  projects: Project[];
+  addProject: (p: Pick<Project, 'name' | 'description' | 'memberIds'>) => void;
+  tasks: Task[];
+  addTask: (t: Omit<Task, 'id' | 'status'>) => void;
+  addUser: (u: Pick<User, 'name' | 'role'> & { email: string }) => string;
+  updateTaskStatus: (id: string, status: Task['status']) => void;
+  updateTaskAssignees: (id: string, assigneeIds: string[]) => void;
+  users: User[];
+  isProjectModalOpen: boolean;
+  setProjectModalOpen: (open: boolean) => void;
+  isTaskModalOpen: { open: boolean; projectId?: string; dateStr?: string };
+  setTaskModalOpen: (state: { open: boolean; projectId?: string; dateStr?: string }) => void;
+  notifications: AppNotification[];
+  markNotificationRead: (id: string) => void;
+  clearNotifications: () => void;
+  discussions: Discussion[];
+  addDiscussion: (d: Pick<Discussion, 'title' | 'projectId'>) => void;
+  messages: Message[];
+  addMessage: (m: Pick<Message, 'discussionId' | 'content' | 'authorId'>) => void;
+  organization: Organization;
+  teams: Team[];
+  addTeam: (t: Pick<Team, 'name' | 'description' | 'members'>) => void;
+  updateTeamMembers: (id: string, members: TeamMember[]) => void;
+  linkTeamToProject: (projectId: string, teamId: string) => void;
+  files: FileNode[];
+  addFile: (f: Pick<FileNode, 'projectId' | 'type' | 'name' | 'parentId' | 'content' | 'fileData' | 'fileType' | 'attachedMemberIds'>) => void;
+  updateFileContent: (id: string, content: string) => void;
+  archiveProject: (id: string) => void;
+  restoreProject: (id: string) => void;
+  archiveFile: (id: string) => void;
+  restoreFile: (id: string) => void;
+};
+
+export const AppContext = createContext<AppContextType | null>(null);
+
+const initialUsers: User[] = [
+  { id: 'u1', name: 'Sarah Jenkins', avatar: 'https://picsum.photos/seed/sarah/100/100', color: 'bg-primary', role: 'Organization Lead' },
+  { id: 'u2', name: 'Alex Chen', avatar: 'https://picsum.photos/seed/alex/100/100', color: 'bg-secondary', role: 'Project Lead' },
+  { id: 'u3', name: 'Jordan Lee', avatar: 'https://picsum.photos/seed/jordan/100/100', color: 'bg-tertiary', role: 'Team Lead' },
+  { id: 'u4', name: 'Taylor Swift', avatar: 'https://picsum.photos/seed/taylor/100/100', color: 'bg-error', role: 'Contributor' }
+];
+
+const initialProjects: Project[] = [
+  { id: 'p1', name: 'Q3 Platform Redesign', description: 'Overhaul the core platform UI for improved conversions.', status: 'Active', teamIds: ['t1'], memberIds: ['u1', 'u2'] },
+  { id: 'p2', name: 'Client Onboarding Flow', description: 'Streamline the sign-up and initial configuration.', status: 'Active', teamIds: [], memberIds: ['u1'] },
+  { id: 'p3', name: 'Security Audit Resolution', description: 'Address all P1/P2 issues from the recent audit.', status: 'Active', teamIds: ['t2'], memberIds: ['u3'] }
+];
+
+const initialOrganization: Organization = { id: 'org1', name: 'Trust & Peace Inc.' };
+
+const initialTeams: Team[] = [
+  { 
+    id: 't1', orgId: 'org1', name: 'Frontend Guild', description: 'Core UI/UX engineers', 
+    members: [
+      { userId: 'u1', title: 'Organization Lead', permissions: { read: true, create: true, update: true, delete: true } },
+      { userId: 'u2', title: 'Project Lead', permissions: { read: true, create: true, update: true, delete: true } }
+    ] 
+  },
+  { 
+    id: 't2', orgId: 'org1', name: 'Backend Services', description: 'API and Database team', 
+    members: [
+      { userId: 'u3', title: 'Team Lead', permissions: { read: true, create: true, update: true, delete: false } }
+    ] 
+  }
+];
+
+const initialFiles: FileNode[] = [
+  { id: 'f1', projectId: 'p1', type: 'folder', name: 'Design Specs', parentId: null, uploaderId: 'u1' },
+  { id: 'f2', projectId: 'p1', type: 'file', name: 'Q3_Requirements.html', parentId: 'f1', content: '<h2>Requirements</h2><ul><li>Improve UX</li></ul>', uploaderId: 'u1', attachedMemberIds: ['u1'] }
+];
+
+const initialTasks: Task[] = [
+  { id: 't1', projectId: 'p1', title: 'Review Q3 Wireframes', status: 'Todo', assigneeIds: ['u1', 'u2'], dueDate: '2026-04-23', priority: 'High' },
+  { id: 't2', projectId: 'p2', title: 'Draft update for Stakeholders', status: 'In Progress', assigneeIds: ['u1'], dueDate: '2026-04-24', priority: 'Medium' },
+  { id: 't3', projectId: 'p1', title: 'Phase 1 Design Handoff', status: 'Done', assigneeIds: ['u3'], dueDate: '2026-04-22', priority: 'High' },
+  { id: 't4', projectId: 'p3', title: 'Patch Middleware vulnerability', status: 'In Progress', assigneeIds: ['u2'], dueDate: '2026-04-25', priority: 'High' }
+];
+
+const initialDiscussions: Discussion[] = [
+  { id: 'd1', projectId: 'p1', title: 'Platform Redesign - Design Sync', updatedAt: '2026-04-23T10:30:00' },
+  { id: 'd2', projectId: null, title: 'General Announcements', updatedAt: '2026-04-22T08:15:00' },
+  { id: 'd3', projectId: 'p2', title: 'Onboarding Flow - Legal Copy updates', updatedAt: '2026-04-21T14:45:00' }
+];
+
+const initialMessages: Message[] = [
+  { id: 'm1', discussionId: 'd1', authorId: 'u1', content: 'Hey everyone, I uploaded the new wireframes. Could we review them today?', timestamp: '2026-04-23T09:00:00' },
+  { id: 'm2', discussionId: 'd1', authorId: 'u3', content: 'They look great. I have a few notes on the navigation structure.', timestamp: '2026-04-23T10:15:00' },
+  { id: 'm3', discussionId: 'd1', authorId: 'u2', content: 'I will take a look after my current meeting.', timestamp: '2026-04-23T10:30:00' },
+  { id: 'm4', discussionId: 'd2', authorId: 'u1', content: 'Welcome to the new Trust & Peace workspace!', timestamp: '2026-04-22T08:15:00' }
+];
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [discussions, setDiscussions] = useState<Discussion[]>(initialDiscussions);
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [organization, setOrganization] = useState<Organization>(initialOrganization);
+  const [teams, setTeams] = useState<Team[]>(initialTeams);
+  const [files, setFiles] = useState<FileNode[]>(initialFiles);
+  
+  const [isProjectModalOpen, setProjectModalOpen] = useState(false);
+  const [isTaskModalOpen, setTaskModalOpen] = useState<{ open: boolean; projectId?: string; dateStr?: string }>({ open: false });
+
+  const addProject = (project: Pick<Project, 'name' | 'description' | 'memberIds'>) => {
+    setProjects(prev => [...prev, { ...project, id: `p${Date.now()}`, status: 'Active', teamIds: [] }]);
+  };
+
+  const addUser = (userData: Pick<User, 'name' | 'role'> & { email: string }) => {
+    const newId = `u${Date.now()}`;
+    const newUser: User = {
+      id: newId,
+      name: userData.name || userData.email.split('@')[0],
+      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${userData.email}`,
+      color: 'bg-primary',
+      role: userData.role || 'Contributor'
+    };
+    setUsers(prev => [...prev, newUser]);
+    return newId;
+  };
+
+  const addTask = (task: Omit<Task, 'id' | 'status'>) => {
+    const newTaskId = `t${Date.now()}`;
+    setTasks(prev => [...prev, { ...task, id: newTaskId, status: 'Todo' }]);
+    
+    if (task.notifyIds && task.notifyIds.length > 0) {
+      const newNotifs = task.notifyIds.map(uid => ({
+        id: `n${Date.now()}_${uid}`,
+        userId: uid,
+        message: `You were notified about a new task: ${task.title}`,
+        read: false,
+        timestamp: new Date().toISOString(),
+        taskId: newTaskId
+      }));
+      setNotifications(prev => [...prev, ...newNotifs]);
+    }
+  };
+
+  const markNotificationRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const clearNotifications = () => {
+    if (currentUser) {
+       setNotifications(prev => prev.filter(n => n.userId !== currentUser.id));
+    }
+  };
+
+  const updateTaskStatus = (id: string, status: Task['status']) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, status } : t));
+  };
+
+  const updateTaskAssignees = (id: string, assigneeIds: string[]) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, assigneeIds } : t));
+  };
+
+  const addDiscussion = (discussion: Pick<Discussion, 'title' | 'projectId'>) => {
+    setDiscussions(prev => [{ ...discussion, id: `d${Date.now()}`, updatedAt: new Date().toISOString() }, ...prev]);
+  };
+
+  const addMessage = (message: Pick<Message, 'discussionId' | 'content' | 'authorId'>) => {
+    const timestamp = new Date().toISOString();
+    setMessages(prev => [...prev, { ...message, id: `m${Date.now()}`, timestamp }]);
+    setDiscussions(prev => prev.map(d => d.id === message.discussionId ? { ...d, updatedAt: timestamp } : d).sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+  };
+
+  const addTeam = (team: Pick<Team, 'name' | 'description' | 'members'>) => {
+    setTeams(prev => [...prev, { ...team, id: `tm${Date.now()}`, orgId: organization.id }]);
+  };
+
+  const updateTeamMembers = (id: string, members: TeamMember[]) => {
+    setTeams(prev => prev.map(t => t.id === id ? { ...t, members } : t));
+  };
+
+  const linkTeamToProject = (projectId: string, teamId: string) => {
+    setProjects(prev => prev.map(p => {
+      if (p.id === projectId) {
+        return { ...p, teamIds: p.teamIds.includes(teamId) ? p.teamIds : [...p.teamIds, teamId] };
+      }
+      return p;
+    }));
+  };
+
+  const addFile = (f: Pick<FileNode, 'projectId' | 'type' | 'name' | 'parentId' | 'content' | 'attachedMemberIds'>) => {
+    setFiles(prev => [...prev, { ...f, id: `f${Date.now()}`, uploaderId: 'u1' }]);
+  };
+
+  const updateFileContent = (id: string, content: string) => {
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, content } : f));
+  };
+
+  const archiveProject = (id: string) => {
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, status: 'Archived' } : p));
+  };
+
+  const restoreProject = (id: string) => {
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, status: 'Active' } : p));
+  };
+
+  const archiveFile = (id: string) => {
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, isArchived: true } : f));
+  };
+
+  const restoreFile = (id: string) => {
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, isArchived: false } : f));
+  };
+
+  const login = (id: string) => {
+    const u = users.find(u => u.id === id);
+    if (u) setCurrentUser(u);
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+  };
+
+  return (
+    <AppContext.Provider value={{
+      currentUser, login, logout,
+      notifications, markNotificationRead, clearNotifications,
+      projects, addProject,
+      tasks, addTask, updateTaskStatus, updateTaskAssignees,
+      users, addUser,
+      discussions, addDiscussion,
+      messages, addMessage,
+      organization,
+      teams, addTeam, updateTeamMembers, linkTeamToProject,
+      files, addFile, updateFileContent,
+      archiveProject, restoreProject,
+      archiveFile, restoreFile,
+      isProjectModalOpen, setProjectModalOpen,
+      isTaskModalOpen, setTaskModalOpen
+    }}>
+      {children}
+      {isProjectModalOpen && <ProjectModal onClose={() => setProjectModalOpen(false)} onAdd={addProject} users={users} onInviteUser={addUser} />}
+      {isTaskModalOpen.open && <TaskModal projectId={isTaskModalOpen.projectId} dateStr={isTaskModalOpen.dateStr} onClose={() => setTaskModalOpen({ open: false })} onAdd={addTask} projects={projects} users={users} />}
+    </AppContext.Provider>
+  );
+}
+
+export const useAppContext = () => {
+  const ctx = useContext(AppContext);
+  if (!ctx) throw new Error("useAppContext must be used within AppProvider");
+  return ctx;
+}
+
+// Modals
+function ProjectModal({ onClose, onAdd, users, onInviteUser }: { onClose: () => void, onAdd: (p: any) => void, users: User[], onInviteUser: (u: any) => string }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [memberIds, setMemberIds] = useState<string[]>([]);
+  
+  // Invite state
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("Contributor");
+
+  const toggleMember = (id: string) => {
+    setMemberIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleInvite = () => {
+    if (!inviteEmail || !inviteEmail.includes('@')) return;
+    const newId = onInviteUser({ email: inviteEmail, role: inviteRole, name: inviteEmail.split('@')[0] });
+    setMemberIds(prev => [...prev, newId]);
+    setInviteEmail("");
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name) return;
+    onAdd({ name, description, memberIds });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-on-background/20 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <form onSubmit={handleSubmit} className="bg-surface border border-outline-variant/30 rounded-xl shadow-2xl w-full max-w-lg p-6 relative max-h-[90vh] flex flex-col">
+        <button type="button" onClick={onClose} className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface cursor-pointer"><X size={20}/></button>
+        <h2 className="text-headline-md font-headline-md text-on-surface mb-6 shrink-0">Create New Project</h2>
+        
+        <div className="space-y-6 overflow-y-auto no-scrollbar pb-4 -mx-2 px-2">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-label-sm font-label-sm text-on-surface-variant mb-1">Project Name</label>
+              <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Q4 Marketing Campaign" className="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg px-4 py-2 outline-none focus:border-primary text-body-md transition-colors" required />
+            </div>
+            <div>
+              <label className="block text-label-sm font-label-sm text-on-surface-variant mb-1">Description (Optional)</label>
+              <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief overview of the goals..." className="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg px-4 py-2 outline-none focus:border-primary text-body-md min-h-[80px] resize-none transition-colors" />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-outline-variant/30">
+            <h3 className="text-body-lg font-semibold text-on-surface mb-4">Project Members</h3>
+            
+            <div className="mb-6">
+              <label className="block text-label-sm font-label-sm text-on-surface-variant mb-2">Assign Existing Members</label>
+              <div className="flex gap-2 flex-wrap max-h-[120px] overflow-y-auto p-1">
+                {users.map(u => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => toggleMember(u.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-body-md transition-all cursor-pointer ${memberIds.includes(u.id) ? 'bg-primary border-primary text-on-primary' : 'bg-surface-container-lowest border-outline-variant hover:border-outline text-on-surface-variant'}`}
+                  >
+                    <Image src={u.avatar} width={18} height={18} className="rounded-full overflow-hidden shrink-0" alt={u.name} unoptimized />
+                    <div className="flex flex-col text-left line-clamp-1">
+                      <span>{u.name}</span>
+                      <span className="text-[10px] opacity-70 leading-none">{u.role}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-4">
+              <label className="block text-label-sm font-label-sm text-on-surface-variant mb-2">Invite New Member</label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input 
+                  type="email" 
+                  value={inviteEmail} 
+                  onChange={e => setInviteEmail(e.target.value)} 
+                  placeholder="email@example.com" 
+                  className="flex-1 bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-2 text-body-sm outline-none focus:border-primary transition-colors"
+                />
+                <select 
+                  value={inviteRole} 
+                  onChange={e => setInviteRole(e.target.value)}
+                  className="bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-2 text-body-sm outline-none focus:border-primary cursor-pointer"
+                >
+                  <option value="Contributor">Contributor</option>
+                  <option value="Team Lead">Team Lead</option>
+                  <option value="Project Lead">Project Lead</option>
+                </select>
+                <button 
+                  type="button" 
+                  onClick={handleInvite}
+                  disabled={!inviteEmail}
+                  className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface px-4 py-2 rounded-lg font-medium text-body-sm transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Invite
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 pt-4 border-t border-outline-variant/30 flex justify-end gap-3 shrink-0">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-body-md font-medium text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer">Cancel</button>
+          <button type="submit" className="px-4 py-2 rounded-lg text-body-md font-medium bg-primary text-on-primary hover:opacity-90 transition-opacity cursor-pointer shadow-sm">Create Project</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function TaskModal({ onClose, onAdd, projects, users, projectId, dateStr }: { onClose: () => void, onAdd: (t: any) => void, projects: Project[], users: User[], projectId?: string, dateStr?: string }) {
+  const [title, setTitle] = useState("");
+  const [projId, setProjId] = useState(projectId || (projects[0]?.id || ""));
+  const [dueDate, setDueDate] = useState(dateStr || "2026-04-23");
+  const [priority, setPriority] = useState<'Low'|'Medium'|'High'>('Medium');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [notifyIds, setNotifyIds] = useState<string[]>([]);
+
+  const toggleAssignee = (id: string) => {
+    setAssigneeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const toggleNotify = (id: string) => {
+    setNotifyIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !projId) return;
+    onAdd({ title, projectId: projId, dueDate, priority, assigneeIds, notifyIds });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-on-background/20 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <form onSubmit={handleSubmit} className="bg-surface border border-outline-variant/30 rounded-xl shadow-2xl w-full max-w-md p-6 relative">
+        <button type="button" onClick={onClose} className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface cursor-pointer"><X size={20}/></button>
+        <h2 className="text-headline-md font-headline-md text-on-surface mb-6">Add New Task</h2>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-label-sm font-label-sm text-on-surface-variant mb-1">Task Title</label>
+            <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Finalize copy for homepage" className="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg px-4 py-2 outline-none focus:border-primary text-body-md transition-colors" required />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-label-sm font-label-sm text-on-surface-variant mb-1">Project</label>
+              <select value={projId} onChange={e => setProjId(e.target.value)} className="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-2 outline-none focus:border-primary text-body-md transition-colors cursor-pointer" required>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-label-sm font-label-sm text-on-surface-variant mb-1">Priority</label>
+              <select value={priority} onChange={e => setPriority(e.target.value as any)} className="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-2 outline-none focus:border-primary text-body-md transition-colors cursor-pointer">
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-label-sm font-label-sm text-on-surface-variant mb-1">Due Date</label>
+            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg px-4 py-2 outline-none focus:border-primary text-body-md transition-colors" />
+          </div>
+
+          <div>
+            <label className="block text-label-sm font-label-sm text-on-surface-variant mb-2">Assign Team Members</label>
+            <div className="flex gap-2 flex-wrap">
+              {users.map(u => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => toggleAssignee(u.id)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-body-md transition-all cursor-pointer ${assigneeIds.includes(u.id) ? 'bg-primary border-primary text-on-primary' : 'bg-surface-container-lowest border-outline-variant hover:border-outline text-on-surface-variant'}`}
+                >
+                  <Image src={u.avatar} width={18} height={18} className="rounded-full overflow-hidden shrink-0" alt={u.name} unoptimized />
+                  <div className="flex flex-col text-left line-clamp-1">
+                    <span>{u.name}</span>
+                    <span className="text-[10px] opacity-70 leading-none">{u.role}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-label-sm font-label-sm text-on-surface-variant mb-2">Notify Members (Optional)</label>
+            <div className="flex gap-2 flex-wrap">
+              {users.filter(u => u.role !== 'Organization Lead').map(u => (
+                <button
+                  key={`notify-${u.id}`}
+                  type="button"
+                  onClick={() => toggleNotify(u.id)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-body-md transition-all cursor-pointer ${notifyIds.includes(u.id) ? 'bg-secondary-container border-secondary-container text-on-secondary-container' : 'bg-surface-container-lowest border-outline-variant hover:border-outline text-on-surface-variant'}`}
+                >
+                  <div className="flex flex-col text-left line-clamp-1">
+                    <span>{u.name}</span>
+                    <span className="text-[10px] opacity-70 leading-none">{u.role}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-body-md font-medium text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer">Cancel</button>
+          <button type="submit" className="px-4 py-2 rounded-lg text-body-md font-medium bg-primary text-on-primary hover:opacity-90 transition-opacity cursor-pointer shadow-sm">Add Task</button>
+        </div>
+      </form>
+    </div>
+  );
+}
