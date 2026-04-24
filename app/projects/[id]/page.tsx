@@ -2,7 +2,7 @@
 import React, { use, useState, useEffect } from "react";
 import { useAppContext, Task, formatFriendlyDate, FileNode } from "@/components/AppProvider";
 import { useParams } from "next/navigation";
-import { Plus, MoreHorizontal, Calendar, Target, LayoutGrid, Folder, FileText, ChevronRight, Upload, X, Archive } from "lucide-react";
+import { Plus, MoreHorizontal, Calendar, Target, LayoutGrid, Folder, FileText, ChevronRight, Upload, X, Archive, GitBranch } from "lucide-react";
 import Image from "next/image";
 import { DocumentEditor } from "@/components/DocumentEditor";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
@@ -164,10 +164,13 @@ export default function ProjectDashboard(props: { params: Promise<{ id: string }
                               {colTasks.map((task, index) => {
                                 const assignees = users.filter(u => task.assigneeIds.includes(u.id));
                                 
+                                const subTasks = tasks.filter(t => t.parentTaskId === task.id);
+                                const doneSubCount = subTasks.filter(s => s.status === 'Done').length;
+
                                 return (
                                   <Draggable key={task.id} draggableId={task.id} index={index}>
                                     {(provided, snapshot) => (
-                                      <div 
+                                      <div
                                         ref={provided.innerRef}
                                         {...provided.draggableProps}
                                         {...provided.dragHandleProps}
@@ -176,29 +179,46 @@ export default function ProjectDashboard(props: { params: Promise<{ id: string }
                                       >
                                         <div className="flex justify-between items-start mb-2">
                                           <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md ${
-                                            task.priority === 'High' ? 'bg-error-container text-on-error-container' : 
+                                            task.priority === 'High' ? 'bg-error-container text-on-error-container' :
                                             task.priority === 'Medium' ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-container-high text-on-surface-variant'
                                           }`}>
                                             {task.priority}
                                           </span>
-                                          
-                                          <select 
-                                            value={task.status} 
+
+                                          <select
+                                            value={task.status}
                                             onChange={(e) => updateTaskStatus(task.id, e.target.value as any)}
                                             className="opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-surface-container-low border border-outline-variant/50 rounded px-1.5 py-0.5 outline-none text-on-surface-variant cursor-pointer hover:text-on-surface"
                                           >
                                             {columns.map(c => <option key={c} value={c}>Move to {c}</option>)}
                                           </select>
                                         </div>
-                                        
+
                                         <h4 className="text-body-md font-body-md font-medium text-on-surface mb-3">{task.title}</h4>
-                                        
+
+                                        {subTasks.length > 0 && (
+                                          <div className="mb-3">
+                                            <div className="flex items-center justify-between mb-1">
+                                              <span className="flex items-center gap-1 text-[11px] text-on-surface-variant">
+                                                <GitBranch size={11} className="text-primary/70" />
+                                                {doneSubCount}/{subTasks.length} sub-tasks
+                                              </span>
+                                            </div>
+                                            <div className="h-1 w-full bg-surface-container rounded-full overflow-hidden">
+                                              <div
+                                                className="h-full bg-primary rounded-full transition-all duration-300"
+                                                style={{ width: `${Math.round((doneSubCount / subTasks.length) * 100)}%` }}
+                                              />
+                                            </div>
+                                          </div>
+                                        )}
+
                                         <div className="flex justify-between items-center">
                                           <span className="flex items-center gap-1.5 text-label-sm font-label-sm text-outline">
                                             <Calendar size={14} />
                                             {formatFriendlyDate(task.dueDate)}
                                           </span>
-                                          
+
                                           <div className="flex -space-x-1.5">
                                             {assignees.map(u => (
                                               <div key={u.id} className="w-6 h-6 rounded-full border-2 border-surface overflow-hidden bg-surface-container" title={u.name}>

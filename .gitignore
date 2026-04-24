@@ -5,3 +5,8 @@ coverage/
 *.log
 .env*
 !.env.example
+graphify-out
+Account_Actions.json
+Organization_Actions.json
+Team_Actions.json
+tsconfig.tsbuildinfo

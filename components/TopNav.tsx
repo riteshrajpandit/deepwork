@@ -4,11 +4,20 @@ import { Search, Bell, HelpCircle, Menu, Check } from "lucide-react";
 import Image from "next/image";
 import { useAppContext, formatFriendlyDate } from "@/components/AppProvider";
 import { useState, useRef, useEffect } from "react";
+import { authApi } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export function TopNav() {
   const { currentUser, logout, notifications, markNotificationRead, clearNotifications } = useAppContext();
   const [showNotifications, setShowNotifications] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await authApi.logout();
+    logout();
+    router.push("/login");
+  };
 
   const userNotifications = notifications.filter(n => n.userId === currentUser?.id);
   const unreadCount = userNotifications.filter(n => !n.read).length;
@@ -93,7 +102,7 @@ export function TopNav() {
         </button>
         
         <div className="pl-4 border-l border-outline-variant/30 ml-2">
-            <button onClick={logout} title={`Logout ${currentUser?.name}`} className="w-8 h-8 rounded-full bg-surface-container-high overflow-hidden cursor-pointer border border-outline-variant/40 active:opacity-70 transition-opacity">
+            <button onClick={handleLogout} title={`Logout ${currentUser?.name}`} className="w-8 h-8 rounded-full bg-surface-container-high overflow-hidden cursor-pointer border border-outline-variant/40 active:opacity-70 transition-opacity">
               <Image 
                   src={currentUser?.avatar || "https://picsum.photos/seed/user/100/100"} 
                   alt="User profile" 

@@ -1,10 +1,10 @@
 "use client";
 import React, { createContext, useContext, useState, ReactNode } from "react";
-import { X } from "lucide-react";
+import { X, Plus, GitBranch, ChevronDown, ChevronUp } from "lucide-react";
 import Image from "next/image";
 
-export type User = { id: string; name: string; avatar: string; color: string; role: string; };
-export type Task = { id: string; projectId: string; title: string; status: 'Todo' | 'In Progress' | 'Done'; assigneeIds: string[]; notifyIds?: string[]; dueDate: string; priority: 'Low' | 'Medium' | 'High'; };
+export type User = { id: string; name: string; avatar: string; color: string; role: string; orgId?: string; orgRole?: "owner" | "admin" | "member"; };
+export type Task = { id: string; projectId: string; title: string; status: 'Todo' | 'In Progress' | 'Done'; assigneeIds: string[]; notifyIds?: string[]; dueDate: string; priority: 'Low' | 'Medium' | 'High'; parentTaskId?: string; };
 export type Project = { id: string; name: string; description: string; status: 'Active' | 'Completed' | 'Archived'; teamIds: string[]; memberIds: string[]; };
 export type AppNotification = { id: string; userId: string; message: string; read: boolean; timestamp: string; taskId?: string; };
 export type Discussion = { id: string; projectId: string | null; title: string; updatedAt: string; };
@@ -27,11 +27,13 @@ export function formatFriendlyDate(dateStr: string) {
 type AppContextType = {
   currentUser: User | null;
   login: (id: string) => void;
+  loginWithToken: (user: User) => void;
   logout: () => void;
   projects: Project[];
   addProject: (p: Pick<Project, 'name' | 'description' | 'memberIds'>) => void;
   tasks: Task[];
-  addTask: (t: Omit<Task, 'id' | 'status'>) => void;
+  addTask: (t: Omit<Task, 'id' | 'status'>) => string;
+  addSubTask: (parentTaskId: string, t: Omit<Task, 'id' | 'status' | 'parentTaskId'>) => void;
   addUser: (u: Pick<User, 'name' | 'role'> & { email: string }) => string;
   updateTaskStatus: (id: string, status: Task['status']) => void;
   updateTaskAssignees: (id: string, assigneeIds: string[]) => void;
@@ -48,6 +50,7 @@ type AppContextType = {
   messages: Message[];
   addMessage: (m: Pick<Message, 'discussionId' | 'content' | 'authorId'>) => void;
   organization: Organization;
+  updateOrganization: (patch: Partial<Organization>) => void;
   teams: Team[];
   addTeam: (t: Pick<Team, 'name' | 'description' | 'members'>) => void;
   updateTeamMembers: (id: string, members: TeamMember[]) => void;
@@ -152,10 +155,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return newId;
   };
 
-  const addTask = (task: Omit<Task, 'id' | 'status'>) => {
+  const addTask = (task: Omit<Task, 'id' | 'status'>): string => {
     const newTaskId = `t${Date.now()}`;
     setTasks(prev => [...prev, { ...task, id: newTaskId, status: 'Todo' }]);
-    
+
     if (task.notifyIds && task.notifyIds.length > 0) {
       const newNotifs = task.notifyIds.map(uid => ({
         id: `n${Date.now()}_${uid}`,
@@ -167,6 +170,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }));
       setNotifications(prev => [...prev, ...newNotifs]);
     }
+    return newTaskId;
+  };
+
+  const addSubTask = (parentTaskId: string, task: Omit<Task, 'id' | 'status' | 'parentTaskId'>) => {
+    const newTaskId = `t${Date.now()}`;
+    setTasks(prev => [...prev, { ...task, id: newTaskId, status: 'Todo', parentTaskId }]);
   };
 
   const markNotificationRead = (id: string) => {
@@ -243,20 +252,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (u) setCurrentUser(u);
   };
 
+  const loginWithToken = (user: User) => {
+    setCurrentUser(user);
+  };
+
   const logout = () => {
     setCurrentUser(null);
   };
 
+  const updateOrganization = (patch: Partial<Organization>) => {
+    setOrganization(prev => ({ ...prev, ...patch }));
+  };
+
   return (
     <AppContext.Provider value={{
-      currentUser, login, logout,
+      currentUser, login, loginWithToken, logout,
       notifications, markNotificationRead, clearNotifications,
       projects, addProject,
-      tasks, addTask, updateTaskStatus, updateTaskAssignees,
+      tasks, addTask, addSubTask, updateTaskStatus, updateTaskAssignees,
       users, addUser,
       discussions, addDiscussion,
       messages, addMessage,
-      organization,
+      organization, updateOrganization,
       teams, addTeam, updateTeamMembers, linkTeamToProject,
       files, addFile, updateFileContent,
       archiveProject, restoreProject,
@@ -266,7 +283,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }}>
       {children}
       {isProjectModalOpen && <ProjectModal onClose={() => setProjectModalOpen(false)} onAdd={addProject} users={users} onInviteUser={addUser} />}
-      {isTaskModalOpen.open && <TaskModal projectId={isTaskModalOpen.projectId} dateStr={isTaskModalOpen.dateStr} onClose={() => setTaskModalOpen({ open: false })} onAdd={addTask} projects={projects} users={users} />}
+      {isTaskModalOpen.open && <TaskModal projectId={isTaskModalOpen.projectId} dateStr={isTaskModalOpen.dateStr} onClose={() => setTaskModalOpen({ open: false })} onAdd={addTask} onAddSubTask={addSubTask} projects={projects} users={users} />}
     </AppContext.Provider>
   );
 }
@@ -387,13 +404,16 @@ function ProjectModal({ onClose, onAdd, users, onInviteUser }: { onClose: () => 
   );
 }
 
-function TaskModal({ onClose, onAdd, projects, users, projectId, dateStr }: { onClose: () => void, onAdd: (t: any) => void, projects: Project[], users: User[], projectId?: string, dateStr?: string }) {
+function TaskModal({ onClose, onAdd, onAddSubTask, projects, users, projectId, dateStr }: { onClose: () => void, onAdd: (t: any) => string, onAddSubTask: (parentTaskId: string, t: any) => void, projects: Project[], users: User[], projectId?: string, dateStr?: string }) {
   const [title, setTitle] = useState("");
   const [projId, setProjId] = useState(projectId || (projects[0]?.id || ""));
   const [dueDate, setDueDate] = useState(dateStr || "2026-04-23");
   const [priority, setPriority] = useState<'Low'|'Medium'|'High'>('Medium');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [notifyIds, setNotifyIds] = useState<string[]>([]);
+  const [subTaskTitles, setSubTaskTitles] = useState<string[]>([]);
+  const [subTaskInput, setSubTaskInput] = useState("");
+  const [showSubTasks, setShowSubTasks] = useState(false);
 
   const toggleAssignee = (id: string) => {
     setAssigneeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -403,10 +423,24 @@ function TaskModal({ onClose, onAdd, projects, users, projectId, dateStr }: { on
     setNotifyIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
+  const addSubTaskTitle = () => {
+    const trimmed = subTaskInput.trim();
+    if (!trimmed) return;
+    setSubTaskTitles(prev => [...prev, trimmed]);
+    setSubTaskInput("");
+  };
+
+  const removeSubTaskTitle = (index: number) => {
+    setSubTaskTitles(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !projId) return;
-    onAdd({ title, projectId: projId, dueDate, priority, assigneeIds, notifyIds });
+    const parentId = onAdd({ title, projectId: projId, dueDate, priority, assigneeIds, notifyIds });
+    subTaskTitles.forEach(subTitle => {
+      onAddSubTask(parentId, { title: subTitle, projectId: projId, dueDate, priority: 'Low', assigneeIds: [], notifyIds: [] });
+    });
     onClose();
   };
 
@@ -481,6 +515,53 @@ function TaskModal({ onClose, onAdd, projects, users, projectId, dateStr }: { on
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="border-t border-outline-variant/30 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowSubTasks(p => !p)}
+              className="flex items-center gap-2 text-label-sm font-label-sm text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer w-full"
+            >
+              <GitBranch size={15} className="text-primary" />
+              <span className="font-medium">Sub-tasks</span>
+              {subTaskTitles.length > 0 && (
+                <span className="bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded-full font-bold">{subTaskTitles.length}</span>
+              )}
+              <span className="ml-auto">{showSubTasks ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span>
+            </button>
+
+            {showSubTasks && (
+              <div className="mt-3 space-y-2">
+                {subTaskTitles.map((st, i) => (
+                  <div key={i} className="flex items-center gap-2 pl-4 border-l-2 border-primary/30">
+                    <GitBranch size={12} className="text-primary/50 shrink-0" />
+                    <span className="flex-1 text-body-md text-on-surface">{st}</span>
+                    <button type="button" onClick={() => removeSubTaskTitle(i)} className="text-on-surface-variant hover:text-error transition-colors cursor-pointer p-0.5 rounded">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+                <div className="flex gap-2 pl-4 border-l-2 border-outline-variant/30 mt-2">
+                  <input
+                    type="text"
+                    value={subTaskInput}
+                    onChange={e => setSubTaskInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSubTaskTitle(); } }}
+                    placeholder="Add a sub-task…"
+                    className="flex-1 bg-surface-container-low border border-outline-variant/50 rounded-lg px-3 py-1.5 outline-none focus:border-primary text-body-md transition-colors text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={addSubTaskTitle}
+                    disabled={!subTaskInput.trim()}
+                    className="p-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-colors cursor-pointer disabled:opacity-40"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
