@@ -149,7 +149,8 @@ const EMPTY_PLACEHOLDER = (
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function TodosPage() {
-  const { tasks, projects, users, updateTaskStatus, setTaskModalOpen } = useAppContext();
+  const { tasks, projects, users, updateTaskStatus, setTaskModalOpen, currentUser } = useAppContext();
+  const canCreateTask = currentUser?.orgRole === "owner" || currentUser?.orgRole === "admin";
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
   // Stable callbacks
@@ -206,12 +207,14 @@ export default function TodosPage() {
           <h2 className="text-display-xl font-display-xl text-on-surface mb-2">My Todos</h2>
           <p className="text-body-lg font-body-lg text-on-surface-variant">Your pending work across all initiatives.</p>
         </div>
-        <button
-          onClick={openModal}
-          className="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-sm text-label-sm hover:opacity-90 transition-opacity flex items-center gap-2 cursor-pointer shadow-sm active:scale-95"
-        >
-          <Plus size={18} /> Add Todo
-        </button>
+        {canCreateTask && (
+          <button
+            onClick={openModal}
+            className="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-sm text-label-sm hover:opacity-90 transition-opacity flex items-center gap-2 cursor-pointer shadow-sm active:scale-95"
+          >
+            <Plus size={18} /> Add Todo
+          </button>
+        )}
       </div>
 
       <div className="space-y-8">

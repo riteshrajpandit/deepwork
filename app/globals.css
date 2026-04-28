@@ -112,3 +112,8 @@
     box-shadow: 0px 4px 20px oklch(0% 0 0 / 0.04);
   }
 }
+
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}

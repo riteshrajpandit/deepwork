@@ -1,21 +1,32 @@
 "use client";
 import { useMemo, useCallback, memo } from "react";
-import { CheckSquare, Calendar, ArrowRight, Folder, Target } from "lucide-react";
+import { CheckSquare, Calendar, ArrowRight, Target, Loader2, Folder } from "lucide-react";
 import { useAppContext, formatFriendlyDate } from "@/components/AppProvider";
 import type { Project, Task } from "@/components/AppProvider";
 import Link from "next/link";
 
-// ── Static data — defined outside component so it's never recreated ───────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const WEEK_DAYS: { d: string; n: number; active?: boolean }[] = [
-  { d: 'M', n: 20 },
-  { d: 'T', n: 21 },
-  { d: 'W', n: 22 },
-  { d: 'T', n: 23, active: true },
-  { d: 'F', n: 24 },
-  { d: 'S', n: 25 },
-  { d: 'S', n: 26 },
-];
+function toISODate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function buildWeekDays() {
+  const today = new Date();
+  const day = today.getDay(); // 0=Sun
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - ((day + 6) % 7));
+  const days: { d: string; n: number; active: boolean; iso: string }[] = [];
+  const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const todayISO = toISODate(today);
+  for (let i = 0; i < 7; i++) {
+    const cur = new Date(monday);
+    cur.setDate(monday.getDate() + i);
+    const iso = toISODate(cur);
+    days.push({ d: labels[i], n: cur.getDate(), active: iso === todayISO, iso });
+  }
+  return days;
+}
 
 const PROJECT_COLORS = ['bg-primary', 'bg-secondary', 'bg-surface-tint'] as const;
 
@@ -68,7 +79,9 @@ const FocusTaskRow = memo(function FocusTaskRow({ task }: { task: Task }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const { projects, tasks, setTaskModalOpen } = useAppContext();
+  const { projects, tasks, setTaskModalOpen, coreLoading } = useAppContext();
+
+  const rootTasks = useMemo(() => tasks.filter(t => !t.parentTaskId), [tasks]);
 
   const activeProjects = useMemo(() => projects.filter(p => p.status === 'Active'), [projects]);
   const topProjects = useMemo(() => activeProjects.slice(0, 3), [activeProjects]);
@@ -76,11 +89,30 @@ export default function Dashboard() {
   // Build a Set of active project IDs once so the focusTasks filter is O(1) per task
   const activeProjectIds = useMemo(() => new Set(activeProjects.map(p => p.id)), [activeProjects]);
   const focusTasks = useMemo(
-    () => tasks.filter(t => t.status !== 'Done' && activeProjectIds.has(t.projectId)).slice(0, 3),
-    [tasks, activeProjectIds],
+    () => rootTasks.filter(t => t.status !== 'Done' && activeProjectIds.has(t.projectId)).slice(0, 3),
+    [rootTasks, activeProjectIds],
   );
 
+  // Upcoming tasks: next 5 non-done tasks sorted by due date ascending
+  const upcomingTasks = useMemo(() => {
+    const today = toISODate(new Date());
+    return rootTasks
+      .filter(t => t.status !== 'Done' && t.dueDate >= today)
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+      .slice(0, 5);
+  }, [rootTasks]);
+
+  const weekDays = useMemo(buildWeekDays, []);
+
   const openTaskModal = useCallback(() => setTaskModalOpen({ open: true }), [setTaskModalOpen]);
+
+  if (coreLoading && projects.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 size={28} className="animate-spin text-outline" />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -104,7 +136,7 @@ export default function Dashboard() {
               <ProjectRow
                 key={project.id}
                 project={project}
-                tasks={tasks}
+                tasks={rootTasks}
                 colorClass={PROJECT_COLORS[idx] ?? 'bg-surface-tint'}
               />
             ))}
@@ -173,7 +205,7 @@ export default function Dashboard() {
           </div>
 
           <div className="flex gap-1 w-full justify-between mb-6">
-            {WEEK_DAYS.map((day, i) => (
+            {weekDays.map((day, i) => (
               <div key={i} className={`flex flex-col items-center px-1.5 py-2 rounded-lg min-w-[36px] ${day.active ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high cursor-pointer transition-colors'}`}>
                 <span className="text-[10px] font-semibold uppercase opacity-80">{day.d}</span>
                 <span className={`text-label-sm font-medium mt-1 ${day.active ? 'text-on-primary' : 'text-on-surface'}`}>{day.n}</span>
@@ -182,68 +214,45 @@ export default function Dashboard() {
           </div>
 
           <div className="space-y-4 flex-1">
-            <div className="flex gap-3 group cursor-pointer">
-              <div className="flex flex-col items-center mt-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-surface-container-lowest" />
-                <div className="w-px h-full bg-outline-variant/30 mt-1" />
+            {upcomingTasks.length === 0 ? (
+              <p className="text-body-md text-outline italic px-1">No upcoming tasks.</p>
+            ) : upcomingTasks.map((task, idx) => (
+              <div key={task.id} className="flex gap-3 group cursor-pointer">
+                <div className="flex flex-col items-center mt-1">
+                  <div className={`w-2.5 h-2.5 rounded-full ring-4 ring-surface-container-lowest ${idx === 0 ? 'bg-primary' : idx === 1 ? 'bg-secondary' : 'bg-outline-variant group-hover:bg-primary transition-colors'}`} />
+                  {idx < upcomingTasks.length - 1 && <div className="w-px h-full bg-outline-variant/30 mt-1" />}
+                </div>
+                <div className="pb-4">
+                  <p className={`text-label-sm font-label-sm mb-0.5 ${idx === 0 ? 'text-primary' : idx === 1 ? 'text-secondary' : 'text-outline'}`}>
+                    {formatFriendlyDate(task.dueDate)}
+                  </p>
+                  <p className="text-body-md font-body-md text-on-surface font-medium group-hover:text-primary transition-colors">{task.title}</p>
+                  <p className="text-label-sm font-label-sm text-outline mt-1 flex items-center gap-1.5">
+                    <Target size={14} /> {task.priority} Priority
+                  </p>
+                </div>
               </div>
-              <div className="pb-4">
-                <p className="text-label-sm font-label-sm text-primary mb-0.5">Today, 10:00 AM</p>
-                <p className="text-body-md font-body-md text-on-surface font-medium">Review Q3 Wireframes</p>
-                <p className="text-label-sm font-label-sm text-outline mt-1 flex items-center gap-1.5"><CheckSquare size={14} /> Action Required</p>
-              </div>
-            </div>
-            <div className="flex gap-3 group cursor-pointer">
-              <div className="flex flex-col items-center mt-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-secondary ring-4 ring-surface-container-lowest" />
-                <div className="w-px h-full bg-outline-variant/30 mt-1" />
-              </div>
-              <div className="pb-4">
-                <p className="text-label-sm font-label-sm text-secondary mb-0.5">Tomorrow, 2:00 PM</p>
-                <p className="text-body-md font-body-md text-on-surface font-medium">Stakeholder Sync</p>
-                <p className="text-label-sm font-label-sm text-outline mt-1 flex items-center gap-1.5"><Folder size={14} /> Q3 Platform Redesign</p>
-              </div>
-            </div>
-            <div className="flex gap-3 group cursor-pointer">
-              <div className="flex flex-col items-center mt-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-outline-variant ring-4 ring-surface-container-lowest group-hover:bg-primary transition-colors" />
-              </div>
-              <div>
-                <p className="text-label-sm font-label-sm text-outline mb-0.5">Apr 28</p>
-                <p className="text-body-md font-body-md text-on-surface font-medium group-hover:text-primary transition-colors">Wireframe Approval Deadline</p>
-                <p className="text-label-sm font-label-sm text-outline mt-1 flex items-center gap-1.5"><Target size={14} /> Active Initiative</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* Activity Feed */}
+        {/* Done tasks feed */}
         <div className="md:col-span-4 bg-surface-container-lowest border border-outline-variant/50 rounded-xl p-6 ambient-shadow flex flex-col">
-          <h3 className="text-headline-md font-headline-md text-on-surface mb-6">Recent Activity</h3>
+          <h3 className="text-headline-md font-headline-md text-on-surface mb-6">Recently Completed</h3>
           <div className="relative pl-4 space-y-6 before:absolute before:inset-y-0 before:left-5 before:w-px before:bg-outline-variant/50 flex-1">
-            <div className="relative pl-6">
-              <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-primary ring-4 ring-surface-container-lowest" />
-              <p className="text-label-sm font-label-sm text-outline mb-1">2 hours ago</p>
-              <p className="text-body-md font-body-md text-on-surface leading-snug">
-                <span className="font-medium">Sarah Jenkins</span> completed milestone{' '}
-                <span className="font-medium text-primary cursor-pointer hover:underline">Phase 1 Design</span>
-              </p>
-            </div>
-            <div className="relative pl-6">
-              <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-outline ring-4 ring-surface-container-lowest" />
-              <p className="text-label-sm font-label-sm text-outline mb-1">Yesterday</p>
-              <p className="text-body-md font-body-md text-on-surface leading-snug">
-                <span className="font-medium">You</span> uploaded{' '}
-                <span className="font-medium text-primary cursor-pointer hover:underline">Q4 Resource Planning.pdf</span>
-              </p>
-            </div>
-            <div className="relative pl-6">
-              <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-secondary ring-4 ring-surface-container-lowest" />
-              <p className="text-label-sm font-label-sm text-outline mb-1">Yesterday</p>
-              <p className="text-body-md font-body-md text-on-surface leading-snug">
-                Decision logged: <span className="font-medium">Proceeding with Option B for database mapping</span>
-              </p>
-            </div>
+            {rootTasks.filter(t => t.status === 'Done').slice(0, 4).map((task, idx) => (
+              <div key={task.id} className="relative pl-6">
+                <div className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full ring-4 ring-surface-container-lowest ${idx === 0 ? 'bg-primary' : idx === 1 ? 'bg-secondary' : 'bg-outline'}`} />
+                <p className="text-label-sm font-label-sm text-outline mb-1">{formatFriendlyDate(task.dueDate)}</p>
+                <p className="text-body-md font-body-md text-on-surface leading-snug font-medium line-through opacity-70">{task.title}</p>
+                <p className="text-label-sm font-label-sm text-outline mt-1 flex items-center gap-1.5">
+                  <CheckSquare size={14} /> Completed
+                </p>
+              </div>
+            ))}
+            {rootTasks.filter(t => t.status === 'Done').length === 0 && (
+              <p className="text-body-md text-outline italic">No completed tasks yet.</p>
+            )}
           </div>
         </div>
 

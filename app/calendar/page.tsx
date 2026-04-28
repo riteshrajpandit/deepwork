@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useAppContext, formatFriendlyDate } from "@/components/AppProvider";
 import type { Task } from "@/components/AppProvider";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Grid, Clock, CheckSquare, MoreHorizontal, X, LayoutTemplate } from "lucide-react";
@@ -7,12 +7,16 @@ import Image from "next/image";
 
 export default function CalendarPage() {
   const { tasks, projects, users, setTaskModalOpen, updateTaskStatus } = useAppContext();
-  const [baseDate, setBaseDate] = useState(new Date('2026-04-23T12:00:00'));
+  const rootTasks = useMemo(() => tasks.filter(t => !t.parentTaskId), [tasks]);
+  const [baseDate, setBaseDate] = useState(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; });
   const [view, setView] = useState<'Month' | 'Week' | 'Day'>('Month');
   
   // Track selected date for side panel
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
+  const toISODate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  const todayISO = toISODate(new Date());
   const year = baseDate.getFullYear();
   const month = baseDate.getMonth();
 
@@ -23,7 +27,7 @@ export default function CalendarPage() {
     if (view === 'Day') d.setDate(d.getDate() + 1);
     setBaseDate(d);
   };
-  
+
   const prev = () => {
     const d = new Date(baseDate);
     if (view === 'Month') d.setMonth(d.getMonth() - 1);
@@ -31,13 +35,13 @@ export default function CalendarPage() {
     if (view === 'Day') d.setDate(d.getDate() - 1);
     setBaseDate(d);
   };
-  
-  const goToday = () => {
-    setBaseDate(new Date('2026-04-23T12:00:00'));
-    setSelectedDate('2026-04-23');
-  }
 
-  const toISODate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const goToday = () => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    setBaseDate(d);
+    setSelectedDate(toISODate(d));
+  };
 
   const getMonthGrid = () => {
     const firstDay = new Date(year, month, 1);
@@ -86,7 +90,7 @@ export default function CalendarPage() {
   };
 
   const renderTasks = (dateStr: string) => {
-    const dayTasks = tasks.filter(t => t.dueDate === dateStr);
+    const dayTasks = rootTasks.filter(t => t.dueDate === dateStr);
     return dayTasks.map(task => {
       const assignees = users.filter(u => task.assigneeIds.includes(u.id));
       return (
@@ -115,7 +119,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)]">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center mb-6 shrink-0 gap-4">
         <div>
@@ -175,7 +179,7 @@ export default function CalendarPage() {
                 <div key={day} className="px-4 py-3 text-label-sm font-label-sm text-on-surface-variant text-center border-r border-outline-variant/30 last:border-0 uppercase tracking-wider">
                   {day}
                   {view === 'Week' && (
-                    <span className={`block mt-1 text-body-md font-body-md ${weekDays[i] === '2026-04-23' ? 'text-primary font-semibold' : 'text-on-surface'}`}>
+                    <span className={`block mt-1 text-body-md font-body-md ${weekDays[i] === todayISO ? 'text-primary font-semibold' : 'text-on-surface'}`}>
                       {new Date(weekDays[i]).getDate()}
                     </span>
                   )}
@@ -188,7 +192,7 @@ export default function CalendarPage() {
           {view === 'Month' && (
             <div className="flex-1 grid grid-cols-7 grid-rows-[repeat(auto-fill,minmax(120px,1fr))] overflow-y-auto no-scrollbar bg-outline-variant/20 gap-px">
               {monthDays.map((day, i) => {
-                const isToday = day.dateStr === '2026-04-23';
+                const isToday = day.dateStr === todayISO;
                 const isSelected = selectedDate === day.dateStr;
                 return (
                   <div 
@@ -250,12 +254,12 @@ export default function CalendarPage() {
                   </div>
 
                   <div className="space-y-4">
-                    {tasks.filter(t => t.dueDate === currentISODate).length === 0 ? (
+                    {rootTasks.filter(t => t.dueDate === currentISODate).length === 0 ? (
                       <div className="text-center py-16 text-outline text-body-md bg-surface-container-low rounded-xl border border-dashed border-outline-variant/50">
                         Your schedule is clear for this day.
                       </div>
                     ) : (
-                      tasks.filter(t => t.dueDate === currentISODate).map(task => {
+                      rootTasks.filter(t => t.dueDate === currentISODate).map(task => {
                          const project = projects.find(p => p.id === task.projectId);
                          const assignees = users.filter(u => task.assigneeIds.includes(u.id));
 

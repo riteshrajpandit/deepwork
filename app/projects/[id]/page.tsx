@@ -12,7 +12,8 @@ import type { DropResult } from "@hello-pangea/dnd";
 export default function ProjectDashboard(props: { params: Promise<{ id: string }> }) {
   const params = use(props.params);
   const id = params.id;
-  const { projects, tasks, users, files, addFile, updateFileContent, setTaskModalOpen, updateTaskStatus, archiveProject, archiveFile } = useAppContext();
+  const { projects, tasks, users, files, addFile, updateFileContent, setTaskModalOpen, updateTaskStatus, archiveProject, archiveFile, currentUser } = useAppContext();
+  const canManage = currentUser?.orgRole === "owner" || currentUser?.orgRole === "admin";
   
   const [activeTab, setActiveTab] = useState<'Board' | 'Documents'>('Board');
   const [isMounted, setIsMounted] = useState(false);
@@ -39,9 +40,12 @@ export default function ProjectDashboard(props: { params: Promise<{ id: string }
   const [newTypeType, setNewTypeType] = useState<'folder' | 'file'>('folder');
 
   const project = projects.find(p => p.id === id);
-  if (!project) return <div>Project not found</div>;
+  if (!project) {
+    if (projects.length === 0) return <div className="text-body-md text-outline">Loading project…</div>;
+    return <div>Project not found</div>;
+  }
 
-  const projectTasks = tasks.filter(t => t.projectId === id);
+  const projectTasks = tasks.filter(t => t.projectId === id && !t.parentTaskId);
   const columns: Task['status'][] = ['Todo', 'In Progress', 'Done'];
 
   const projectFiles = files.filter(f => f.projectId === id && !f.isArchived);
@@ -100,7 +104,7 @@ export default function ProjectDashboard(props: { params: Promise<{ id: string }
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)]">
+    <div className="flex-1 flex flex-col min-h-0">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 shrink-0 gap-4">
         <div>
           <h2 className="text-display-xl font-display-xl text-on-surface mb-2 leading-none">{project.name}</h2>
@@ -108,12 +112,14 @@ export default function ProjectDashboard(props: { params: Promise<{ id: string }
         </div>
         
         <div className="flex bg-surface-container border border-outline-variant/30 rounded-lg p-1 shadow-sm mt-2 md:mt-0">
-          <button 
-            onClick={() => archiveProject(project.id)}
-            className="px-4 py-1.5 flex items-center gap-2 rounded-md text-label-sm font-label-sm text-error hover:bg-error-container hover:text-on-error-container transition-all cursor-pointer mr-2"
-          >
-             <Archive size={16} /> Archive Project
-          </button>
+          {canManage && (
+            <button
+              onClick={() => archiveProject(project.id)}
+              className="px-4 py-1.5 flex items-center gap-2 rounded-md text-label-sm font-label-sm text-error hover:bg-error-container hover:text-on-error-container transition-all cursor-pointer mr-2"
+            >
+              <Archive size={16} /> Archive Project
+            </button>
+          )}
           <button 
             onClick={() => { setActiveTab('Board'); setActiveDocumentId(null); }}
             className={`px-4 py-1.5 flex items-center gap-2 rounded-md text-label-sm font-label-sm transition-all cursor-pointer ${activeTab === 'Board' ? 'bg-surface shadow-sm text-on-surface font-semibold' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'}`}
@@ -130,23 +136,25 @@ export default function ProjectDashboard(props: { params: Promise<{ id: string }
       </div>
 
       {activeTab === 'Board' && (
-        <>
-          <div className="flex justify-end mb-4">
-             <button 
-               onClick={() => setTaskModalOpen({ open: true, projectId: project.id })}
-               className="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-sm text-label-sm hover:opacity-90 transition-opacity flex items-center gap-2 cursor-pointer shadow-sm active:scale-95"
-             >
-               <Plus size={18} /> Add Task
-             </button>
-          </div>
+        <div className="flex-1 flex flex-col min-h-0">
+          {canManage && (
+            <div className="flex justify-end mb-4 shrink-0">
+              <button
+                onClick={() => setTaskModalOpen({ open: true, projectId: project.id })}
+                className="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-sm text-label-sm hover:opacity-90 transition-opacity flex items-center gap-2 cursor-pointer shadow-sm active:scale-95"
+              >
+                <Plus size={18} /> Add Task
+              </button>
+            </div>
+          )}
           {isMounted && (
             <DragDropContext onDragEnd={onDragEnd}>
-              <div className="flex-1 flex gap-6 overflow-x-auto no-scrollbar pb-4 bg-surface-container-lowest/50 rounded-xl p-2 h-full items-stretch">
+              <div className="flex-1 flex gap-4 overflow-x-auto no-scrollbar pb-4 bg-surface-container-lowest/50 rounded-xl p-3 min-h-0 items-stretch">
                 {columns.map(status => {
                   const colTasks = projectTasks.filter(t => t.status === status);
                   
                   return (
-                    <div key={status} className="flex-1 min-w-[320px] max-w-[400px] flex flex-col h-[calc(100vh-220px)] bg-surface-container-low rounded-xl p-4 border border-outline-variant/30">
+                    <div key={status} className="flex-1 min-w-[300px] max-w-[420px] flex flex-col min-h-0 bg-surface-container-low rounded-xl p-4 border border-outline-variant/30">
                       <div className="flex justify-between items-center mb-4 px-2 shrink-0">
                         <h3 className="text-body-md font-body-md font-semibold text-on-surface flex items-center gap-2">
                           {status} 
@@ -250,7 +258,7 @@ export default function ProjectDashboard(props: { params: Promise<{ id: string }
               </div>
             </DragDropContext>
           )}
-        </>
+        </div>
       )}
 
       {activeTab === 'Documents' && (

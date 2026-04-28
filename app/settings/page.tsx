@@ -212,7 +212,9 @@ function OrgTab() {
   const orgId = currentUser?.orgId ?? organization.id;
   const myRole: OrgRole = (currentUser?.orgRole as OrgRole) ?? "member";
   const isOwner = myRole === "owner";
-  const canViewMembers = myRole === "owner" || myRole === "admin";
+  const isAdmin = myRole === "admin";
+  const canManageMembers = isOwner || isAdmin;
+  const canViewMembers = canManageMembers;
 
   const [orgName, setOrgName] = useState(organization.name);
   const [editingName, setEditingName] = useState(false);
@@ -336,8 +338,8 @@ function OrgTab() {
         </div>
       </div>
 
-      {/* Invite (owner only) */}
-      {isOwner && (
+      {/* Invite (admin+) */}
+      {canManageMembers && (
         <div className="bg-surface-container-lowest border border-outline-variant/50 rounded-xl p-6 ambient-shadow">
           <h3 className="text-headline-md font-headline-md text-on-surface mb-4">Invite Member</h3>
           <p className="text-body-md text-on-surface-variant mb-5 text-sm">
@@ -863,7 +865,7 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)]">
+    <div className="flex-1 flex flex-col min-h-0">
       <div className="flex justify-between items-center mb-6 shrink-0">
         <div>
           <h2 className="text-display-xl font-display-xl text-on-surface mb-1">Settings</h2>

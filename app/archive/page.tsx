@@ -12,7 +12,7 @@ export default function ArchivePage() {
   const archivedFiles = files.filter(f => f.isArchived);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)]">
+    <div className="flex-1 flex flex-col min-h-0">
       <div className="flex justify-between items-center mb-6 shrink-0">
         <div>
           <h2 className="text-display-xl font-display-xl text-on-surface mb-1 flex items-center gap-3">
@@ -65,11 +65,11 @@ export default function ArchivePage() {
                         <p className="text-label-sm font-label-sm text-on-surface-variant mb-6 line-clamp-2">{proj.description}</p>
                         
                         <div className="mt-auto pt-4 border-t border-outline-variant/30 w-full flex justify-end">
-                           <button 
+                           <button
                              onClick={() => restoreProject(proj.id)}
                              className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-label-sm font-label-sm transition-colors cursor-pointer"
                            >
-                             <RotateCcw size={16} /> Restore Project
+                             <RotateCcw size={16} /> Restore
                            </button>
                         </div>
                       </div>

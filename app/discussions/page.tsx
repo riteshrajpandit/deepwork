@@ -96,7 +96,7 @@ const MessageBubble = memo(function MessageBubble({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DiscussionsPage() {
-  const { discussions, messages, users, projects, addDiscussion, addMessage } = useAppContext();
+  const { discussions, messages, users, projects, addDiscussion, addMessage, currentUser } = useAppContext();
 
   const [activeThreadId, setActiveThreadId] = useState<string | null>(discussions[0]?.id ?? null);
   const [newMessage, setNewMessage] = useState("");
@@ -142,8 +142,7 @@ export default function DiscussionsPage() {
       .sort((a, b) => a.timestamp.localeCompare(b.timestamp)); // ISO strings sort correctly with localeCompare — no Date parsing needed
   }, [messages, activeThreadId]);
 
-  // Demo: treat first user as current user
-  const currentUser = users[0];
+  const activeUser = currentUser ?? users[0];
 
   // ── Stable handlers ───────────────────────────────────────────────────────
 
@@ -155,9 +154,10 @@ export default function DiscussionsPage() {
   const handleSendMessage = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeThreadId) return;
-    addMessage({ discussionId: activeThreadId, authorId: currentUser.id, content: newMessage.trim() });
+    if (!activeUser) return;
+    addMessage({ discussionId: activeThreadId, authorId: activeUser.id, content: newMessage.trim() });
     setNewMessage("");
-  }, [newMessage, activeThreadId, currentUser.id, addMessage]);
+  }, [newMessage, activeThreadId, activeUser, addMessage]);
 
   const handleCreateThread = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -172,14 +172,15 @@ export default function DiscussionsPage() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (newMessage.trim() && activeThreadId) {
-        addMessage({ discussionId: activeThreadId, authorId: currentUser.id, content: newMessage.trim() });
+        if (!activeUser) return;
+        addMessage({ discussionId: activeThreadId, authorId: activeUser.id, content: newMessage.trim() });
         setNewMessage("");
       }
     }
-  }, [newMessage, activeThreadId, currentUser.id, addMessage]);
+  }, [newMessage, activeThreadId, activeUser, addMessage]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)]">
+    <div className="flex-1 flex flex-col min-h-0">
       <div className="flex justify-between items-center mb-6 shrink-0">
         <div>
           <h2 className="text-display-xl font-display-xl text-on-surface mb-1">Discussions</h2>
@@ -283,7 +284,7 @@ export default function DiscussionsPage() {
                         key={msg.id}
                         msg={msg}
                         author={userById.get(msg.authorId)}
-                        isCurrentUser={msg.authorId === currentUser.id}
+                        isCurrentUser={activeUser ? msg.authorId === activeUser.id : false}
                         isSequential={isSequential}
                       />
                     );

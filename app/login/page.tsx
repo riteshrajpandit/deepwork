@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Eye, EyeOff, Loader2, CheckCircle2 } from "lucide-react";
 import { useAppContext } from "@/components/AppProvider";
 import { useRouter, useSearchParams } from "next/navigation";
-import { authApi, tokenStore, ApiError } from "@/lib/api";
+import { authApi, tokenStore, userStore, ApiError } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,6 +26,13 @@ export default function LoginPage() {
       const res = await authApi.login(email, password);
       const { tokens, user } = res.data;
       tokenStore.set(tokens.access, tokens.refresh);
+      userStore.set({
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role,
+        organization_id: user.organization_id,
+      });
 
       // Decode JWT for any extra claims the response body may not include
       const payload = JSON.parse(atob(tokens.access.split(".")[1]));

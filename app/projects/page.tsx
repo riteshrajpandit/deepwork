@@ -69,17 +69,20 @@ const ProjectCard = memo(function ProjectCard({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ProjectsPage() {
-  const { projects, tasks, users, setProjectModalOpen } = useAppContext();
+  const { projects, tasks, users, setProjectModalOpen, currentUser } = useAppContext();
+  const canCreateProject = currentUser?.orgRole === "owner" || currentUser?.orgRole === "admin";
+
+  const rootTasks = useMemo(() => tasks.filter(t => !t.parentTaskId), [tasks]);
 
   // Lookup maps — built once, O(1) per access instead of O(n) per project
   const tasksByProject = useMemo(() => {
     const map = new Map<string, Task[]>();
-    for (const t of tasks) {
+    for (const t of rootTasks) {
       if (!map.has(t.projectId)) map.set(t.projectId, []);
       map.get(t.projectId)!.push(t);
     }
     return map;
-  }, [tasks]);
+  }, [rootTasks]);
 
   const userById = useMemo(
     () => new Map(users.map(u => [u.id, u])),
@@ -98,12 +101,14 @@ export default function ProjectsPage() {
           <h2 className="text-display-xl font-display-xl text-on-surface mb-2">Projects</h2>
           <p className="text-body-lg font-body-lg text-on-surface-variant">Manage and track your primary initiatives.</p>
         </div>
-        <button
-          onClick={() => setProjectModalOpen(true)}
-          className="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-sm text-label-sm hover:opacity-90 transition-opacity flex items-center gap-2 cursor-pointer shadow-sm active:scale-95"
-        >
-          <Plus size={18} /> Create Project
-        </button>
+        {canCreateProject && (
+          <button
+            onClick={() => setProjectModalOpen(true)}
+            className="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-sm text-label-sm hover:opacity-90 transition-opacity flex items-center gap-2 cursor-pointer shadow-sm active:scale-95"
+          >
+            <Plus size={18} /> Create Project
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
