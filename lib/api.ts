@@ -448,6 +448,21 @@ export const authApi = {
     tokenStore.clear();
     userStore.clear();
   },
+
+  forgotPassword: (email: string) =>
+    request<{ message: string }>("/auth/v1/password/forgot/", {
+      method: "POST",
+      body: { email },
+    }),
+
+  resetPassword: (payload: Record<string, string>) =>
+    request<{ message: string }>("/auth/v1/password/reset/", {
+      method: "POST",
+      body: payload,
+    }),
+
+  getMe: () =>
+    request<ApiEnvelope<StoredUser>>("/auth/v1/me/", { auth: true }),
 };
 
 // ── Projects API ─────────────────────────────────────────────────────────────
@@ -548,6 +563,10 @@ export type ApiTask = {
   assigned_team: string;
   assigned_team_name?: string;
   deadline: string;
+  board?: string;
+  column?: string;
+  status: string;
+  position: number;
   progress: {
     total: number;
     todo: number;
@@ -594,7 +613,16 @@ export const todoApi = {
     const res = await request<ApiEnvelope<ApiTaskDetail>>(`/todos/v1/${orgId}/${projectId}/${taskId}/`, { auth: true });
     return res.data;
   },
-  create: async (orgId: string, projectId: string, payload: { title: string; description?: string | null; assigned_team: string; deadline: string }) => {
+  create: async (orgId: string, projectId: string, payload: { 
+    title: string; 
+    description?: string | null; 
+    assigned_team: string; 
+    deadline: string;
+    board_id?: string;
+    column_id?: string;
+    status?: string;
+    position?: number;
+  }) => {
     const res = await request<ApiEnvelope<ApiTask>>(`/todos/v1/${orgId}/${projectId}/`, {
       method: "POST",
       body: payload as Record<string, unknown>,
@@ -602,7 +630,16 @@ export const todoApi = {
     });
     return res.data;
   },
-  update: async (orgId: string, projectId: string, taskId: string, payload: { title?: string; description?: string | null; assigned_team?: string; deadline?: string }) => {
+  update: async (orgId: string, projectId: string, taskId: string, payload: { 
+    title?: string; 
+    description?: string | null; 
+    assigned_team?: string; 
+    deadline?: string;
+    board_id?: string;
+    column_id?: string;
+    status?: string;
+    position?: number;
+  }) => {
     const res = await request<ApiEnvelope<ApiTask>>(`/todos/v1/${orgId}/${projectId}/${taskId}/`, {
       method: "PATCH",
       body: payload as Record<string, unknown>,
@@ -675,6 +712,224 @@ export const todoApi = {
   removeSubtaskAssignee: async (orgId: string, projectId: string, taskId: string, subtaskId: string, userId: string) =>
     request<ApiEnvelope<{ detail?: string }>>(`/todos/v1/${orgId}/${projectId}/${taskId}/subtasks/${subtaskId}/assignees/${userId}/`, {
       method: "DELETE",
+      auth: true,
+    }),
+};
+
+// ── Kanban API ───────────────────────────────────────────────────────────────
+
+export type ApiBoard = {
+  id: string;
+  project: string;
+  name: string;
+  is_default: boolean;
+  columns: ApiBoardColumn[];
+};
+
+export type ApiBoardColumn = {
+  id: string;
+  board: string;
+  name: string;
+  slug: string;
+  position: number;
+  is_terminal: boolean;
+};
+
+export const kanbanApi = {
+  listBoards: async (orgId: string, projectId: string): Promise<ApiBoard[]> => {
+    const res = await request<ApiEnvelope<ApiBoard[]>>(`/kanban/v1/${orgId}/projects/${projectId}/boards/`, { auth: true });
+    return res.data;
+  },
+  createBoard: async (orgId: string, projectId: string, name: string) =>
+    request<ApiEnvelope<ApiBoard>>(`/kanban/v1/${orgId}/projects/${projectId}/boards/`, {
+      method: "POST",
+      body: { name },
+      auth: true,
+    }),
+  listColumns: async (orgId: string, boardId: string): Promise<ApiBoardColumn[]> => {
+    const res = await request<ApiEnvelope<ApiBoardColumn[]>>(`/kanban/v1/${orgId}/boards/${boardId}/columns/`, { auth: true });
+    return res.data;
+  },
+  createColumn: async (orgId: string, boardId: string, payload: { name: string; slug: string; position: number }) =>
+    request<ApiEnvelope<ApiBoardColumn>>(`/kanban/v1/${orgId}/boards/${boardId}/columns/`, {
+      method: "POST",
+      body: payload as Record<string, unknown>,
+      auth: true,
+    }),
+};
+
+// ── Discussions API ──────────────────────────────────────────────────────────
+
+export type ApiDiscussion = {
+  id: string;
+  organization: string;
+  project: string | null;
+  title: string;
+  created_by: string;
+  created_by_name: string;
+  last_message_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApiDiscussionMessage = {
+  id: string;
+  discussion: string;
+  author: string;
+  author_name: string;
+  author_email: string;
+  content: string;
+  edited_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const discussionApi = {
+  list: async (orgId: string, projectId?: string): Promise<ApiDiscussion[]> => {
+    const path = projectId ? `/discussions/v1/${orgId}/?project_id=${projectId}` : `/discussions/v1/${orgId}/`;
+    const res = await request<ApiEnvelope<ApiDiscussion[]>>(path, { auth: true });
+    return res.data;
+  },
+  create: async (orgId: string, payload: { title: string; project?: string | null }) =>
+    request<ApiEnvelope<ApiDiscussion>>(`/discussions/v1/${orgId}/`, {
+      method: "POST",
+      body: payload as Record<string, unknown>,
+      auth: true,
+    }),
+  listMessages: async (orgId: string, discussionId: string): Promise<ApiDiscussionMessage[]> => {
+    const res = await request<ApiEnvelope<ApiDiscussionMessage[]>>(`/discussions/v1/${orgId}/${discussionId}/messages/`, { auth: true });
+    return res.data;
+  },
+  sendMessage: async (orgId: string, discussionId: string, content: string) =>
+    request<ApiEnvelope<ApiDiscussionMessage>>(`/discussions/v1/${orgId}/${discussionId}/messages/`, {
+      method: "POST",
+      body: { content },
+      auth: true,
+    }),
+};
+
+// ── Files API ────────────────────────────────────────────────────────────────
+
+export type ApiFileNode = {
+  id: string;
+  project: string;
+  parent: string | null;
+  type: "folder" | "file" | "upload";
+  name: string;
+  content_html: string | null;
+  file: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  uploaded_by: string;
+  uploaded_by_name: string;
+  is_archived: boolean;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const fileApi = {
+  list: async (orgId: string, projectId: string, parentId?: string): Promise<ApiFileNode[]> => {
+    const path = parentId ? `/files/v1/${orgId}/projects/${projectId}/nodes/?parent_id=${parentId}` : `/files/v1/${orgId}/projects/${projectId}/nodes/`;
+    const res = await request<ApiEnvelope<ApiFileNode[]>>(path, { auth: true });
+    return res.data;
+  },
+  create: async (orgId: string, projectId: string, payload: { name: string; type: string; parent?: string | null; content_html?: string | null }) =>
+    request<ApiEnvelope<ApiFileNode>>(`/files/v1/${orgId}/projects/${projectId}/nodes/`, {
+      method: "POST",
+      body: payload as Record<string, unknown>,
+      auth: true,
+    }),
+  upload: async (orgId: string, projectId: string, formData: FormData) => {
+    const res = await fetch(`${BASE_URL}/files/v1/${orgId}/projects/${projectId}/nodes/`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${tokenStore.getAccess()}`,
+      },
+      body: formData,
+    });
+    if (!res.ok) throw new ApiError(res.status, "Upload failed");
+    return (await res.json()) as ApiEnvelope<ApiFileNode>;
+  },
+  get: async (orgId: string, nodeId: string): Promise<ApiFileNode> => {
+    const res = await request<ApiEnvelope<ApiFileNode>>(`/files/v1/${orgId}/nodes/${nodeId}/`, { auth: true });
+    return res.data;
+  },
+  update: async (orgId: string, nodeId: string, payload: Partial<ApiFileNode>) =>
+    request<ApiEnvelope<ApiFileNode>>(`/files/v1/${orgId}/nodes/${nodeId}/`, {
+      method: "PATCH",
+      body: payload as Record<string, unknown>,
+      auth: true,
+    }),
+};
+
+// ── Archive API ──────────────────────────────────────────────────────────────
+
+export const archiveApi = {
+  list: async (orgId: string, params?: { type?: string; project_id?: string }) => {
+    let query = "";
+    if (params) {
+      const q = new URLSearchParams(params as Record<string, string>).toString();
+      query = `?${q}`;
+    }
+    const res = await request<ApiEnvelope<{ projects: ApiProject[]; files: ApiFileNode[] }>>(`/archive/v1/${orgId}/${query}`, { auth: true });
+    return res.data;
+  },
+};
+
+// ── Search API ───────────────────────────────────────────────────────────────
+
+export const searchApi = {
+  global: async (orgId: string, q: string, types?: string) => {
+    const params: Record<string, string> = { q };
+    if (types) params.types = types;
+    const query = new URLSearchParams(params).toString();
+    const res = await request<ApiEnvelope<Record<string, any[]>>>(`/search/v1/${orgId}/?${query}`, { auth: true });
+    return res.data;
+  },
+};
+
+// ── Calendar API ─────────────────────────────────────────────────────────────
+
+export const calendarApi = {
+  listEvents: async (orgId: string, params?: { from?: string; to?: string; project_id?: string }) => {
+    let query = "";
+    if (params) {
+      const q = new URLSearchParams(params as Record<string, string>).toString();
+      query = `?${q}`;
+    }
+    const res = await request<ApiEnvelope<ApiTask[]>>(`/calendar/v1/${orgId}/events/${query}`, { auth: true });
+    return res.data;
+  },
+};
+
+// ── Notifications API ────────────────────────────────────────────────────────
+
+export type ApiNotification = {
+  id: string;
+  recipient: string;
+  type: string;
+  title: string;
+  message: string;
+  link: string | null;
+  is_read: boolean;
+  read_at: string | null;
+  created_at: string;
+};
+
+export const notificationApi = {
+  list: async (orgId: string): Promise<ApiNotification[]> => {
+    const res = await request<ApiEnvelope<ApiNotification[]>>(`/notifications/v1/${orgId}/`, { auth: true });
+    return res.data;
+  },
+  markRead: async (orgId: string, id: string) =>
+    request<ApiEnvelope<ApiNotification>>(`/notifications/v1/${orgId}/${id}/mark-read/`, {
+      method: "POST",
+      auth: true,
+    }),
+  clearAll: async (orgId: string) =>
+    request<{ detail: string }>(`/notifications/v1/${orgId}/clear-all/`, {
+      method: "POST",
       auth: true,
     }),
 };

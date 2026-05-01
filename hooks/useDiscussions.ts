@@ -1,53 +1,88 @@
 "use client";
-// ── Local-only discussions and messages state (no backend API yet) ───────────
+// ── Integrated discussions and messages hook ─────────────────────────────────
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { discussionApi, ApiError } from "@/lib/api";
 import type { Discussion, Message } from "@/lib/types";
 
-const initialDiscussions: Discussion[] = [
-  { id: "d1", projectId: null, title: "Platform Redesign - Design Sync", updatedAt: "2026-04-23T10:30:00" },
-  { id: "d2", projectId: null, title: "General Announcements", updatedAt: "2026-04-22T08:15:00" },
-];
+export function useDiscussions(activeOrgId: string, projectId?: string) {
+  const [discussions, setDiscussions] = useState<Discussion[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-const initialMessages: Message[] = [
-  { id: "m1", discussionId: "d1", authorId: "", content: "Hey everyone, I uploaded the new wireframes. Could we review them today?", timestamp: "2026-04-23T09:00:00" },
-  { id: "m2", discussionId: "d2", authorId: "", content: "Welcome to the new Trust & Peace workspace!", timestamp: "2026-04-22T08:15:00" },
-];
+  const fetchDiscussions = useCallback(async () => {
+    if (!activeOrgId) return;
+    setLoading(true);
+    try {
+      const data = await discussionApi.list(activeOrgId, projectId);
+      // Map backend ApiDiscussion to frontend Discussion type if necessary
+      const mapped: Discussion[] = data.map(d => ({
+        id: d.id,
+        projectId: d.project,
+        title: d.title,
+        updatedAt: d.last_message_at || d.created_at,
+      }));
+      setDiscussions(mapped);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load discussions");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeOrgId, projectId]);
 
-export function useDiscussions() {
-  const [discussions, setDiscussions] = useState<Discussion[]>(initialDiscussions);
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const fetchMessages = useCallback(async (discussionId: string) => {
+    if (!activeOrgId) return;
+    try {
+      const data = await discussionApi.listMessages(activeOrgId, discussionId);
+      const mapped: Message[] = data.map(m => ({
+        id: m.id,
+        discussionId: m.discussion,
+        authorId: m.author,
+        authorName: m.author_name,
+        content: m.content,
+        timestamp: m.created_at,
+      }));
+      setMessages(mapped);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load messages");
+    }
+  }, [activeOrgId]);
 
   const addDiscussion = useCallback(
-    (discussion: Pick<Discussion, "title" | "projectId">) => {
-      setDiscussions((prev) => [
-        { ...discussion, id: `d${Date.now()}`, updatedAt: new Date().toISOString() },
-        ...prev,
-      ]);
+    async (payload: { title: string; projectId?: string | null }) => {
+      if (!activeOrgId) return;
+      try {
+        await discussionApi.create(activeOrgId, {
+          title: payload.title,
+          project: payload.projectId || projectId || null,
+        });
+        await fetchDiscussions();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Failed to create discussion");
+      }
     },
-    [],
+    [activeOrgId, projectId, fetchDiscussions],
   );
 
   const addMessage = useCallback(
-    (message: Pick<Message, "discussionId" | "content" | "authorId">) => {
-      const timestamp = new Date().toISOString();
-      setMessages((prev) => [
-        ...prev,
-        { ...message, id: `m${Date.now()}`, timestamp },
-      ]);
-      setDiscussions((prev) =>
-        prev
-          .map((d) =>
-            d.id === message.discussionId ? { ...d, updatedAt: timestamp } : d,
-          )
-          .sort(
-            (a, b) =>
-              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-          ),
-      );
+    async (payload: { discussionId: string; content: string }) => {
+      if (!activeOrgId) return;
+      try {
+        await discussionApi.sendMessage(activeOrgId, payload.discussionId, payload.content);
+        await fetchMessages(payload.discussionId);
+        // Refresh discussions to update last_message_at
+        await fetchDiscussions();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Failed to send message");
+      }
     },
-    [],
+    [activeOrgId, fetchMessages, fetchDiscussions],
   );
 
-  return { discussions, messages, addDiscussion, addMessage };
+  useEffect(() => {
+    fetchDiscussions();
+  }, [fetchDiscussions]);
+
+  return { discussions, messages, loading, error, addDiscussion, addMessage, fetchMessages };
 }

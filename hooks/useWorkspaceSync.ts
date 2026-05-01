@@ -134,13 +134,16 @@ export function useWorkspaceSync(
             id: apiTask.id,
             projectId: project.id,
             title: apiTask.title,
-            status: uiSubtasks.length
+            status: apiTask.status ? UI_STATUS_BY_API[apiTask.status] || "Todo" : (uiSubtasks.length
               ? deriveParentStatus(uiSubtasks)
-              : statusFromProgress(apiTask.progress),
+              : statusFromProgress(apiTask.progress)),
             assigneeIds: uniqueIds(uiSubtasks.flatMap((s) => s.assigneeIds)),
             dueDate: apiTask.deadline,
             priority: uiSubtasks.length ? derivePriority(uiSubtasks) : "Medium",
             teamId: apiTask.assigned_team,
+            boardId: apiTask.board,
+            columnId: apiTask.column,
+            position: apiTask.position,
           });
 
           allTasks.push(...uiSubtasks);

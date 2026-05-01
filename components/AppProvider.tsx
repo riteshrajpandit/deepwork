@@ -10,6 +10,7 @@ import { useTaskActions } from "@/hooks/useTaskActions";
 import { useProjectActions } from "@/hooks/useProjectActions";
 import { useDiscussions } from "@/hooks/useDiscussions";
 import { useFiles } from "@/hooks/useFiles";
+import { useNotifications } from "@/hooks/useNotifications";
 import { ProjectModal } from "@/components/modals/ProjectModal";
 import { TaskModal } from "@/components/modals/TaskModal";
 
@@ -87,7 +88,6 @@ export const AppContext = createContext<AppContextType | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   // ── Auth state ─────────────────────────────────────────────────────────────
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   // ── Modal state ────────────────────────────────────────────────────────────
   const [isProjectModalOpen, setProjectModalOpen] = useState(false);
@@ -111,10 +111,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     workspace.refreshCore,
   );
 
-  const { discussions, messages, addDiscussion, addMessage } = useDiscussions();
-  const { files, addFile, updateFileContent, archiveFile, restoreFile } = useFiles(
+  const { discussions, messages, addDiscussion, addMessage, loading: discussionsLoading, error: discussionsError } = useDiscussions(activeOrgId);
+  const { files, addFile, updateFileContent, archiveFile, restoreFile, loading: filesLoading, error: filesError } = useFiles(
+    activeOrgId,
+    "", // projectId can be set per view or defaulted
     currentUser?.id,
   );
+  const { notifications, markNotificationRead, clearNotifications } = useNotifications(activeOrgId);
 
   // ── Auth callbacks ─────────────────────────────────────────────────────────
   const login = useCallback(
@@ -150,15 +153,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
-
-  // ── Notification callbacks ─────────────────────────────────────────────────
-  const markNotificationRead = useCallback((id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-  }, []);
-
-  const clearNotifications = useCallback(() => {
-    setNotifications((prev) => prev.filter((n) => n.userId !== currentUser?.id));
-  }, [currentUser?.id]);
 
   // ── Memoized context value ─────────────────────────────────────────────────
   const value = useMemo<AppContextType>(

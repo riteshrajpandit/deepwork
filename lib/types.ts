@@ -23,6 +23,9 @@ export type Task = {
   priority: "Low" | "Medium" | "High";
   parentTaskId?: string;
   teamId?: string;
+  boardId?: string;
+  columnId?: string;
+  position?: number;
 };
 
 export type Project = {

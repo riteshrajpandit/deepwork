@@ -92,73 +92,32 @@ export function useTaskActions(
       const task = tasks.find((t) => t.id === id);
       if (!task) return;
 
-      // Steps through the status state machine one step at a time
-      const advanceSubtask = async (
-        subtask: Task,
-        target: Task["status"],
-      ): Promise<Task["status"]> => {
-        const currentIdx = STATUS_ORDER.indexOf(subtask.status);
-        const targetIdx = STATUS_ORDER.indexOf(target);
-        if (targetIdx <= currentIdx) return subtask.status;
+      const apiStatus = API_STATUS_BY_UI[status];
 
-        let updatedStatus = subtask.status;
-        for (let i = currentIdx + 1; i <= targetIdx; i++) {
-          const nextStatus = STATUS_ORDER[i];
-          try {
-            await todoApi.updateSubtaskStatus(
-              activeOrgId,
-              subtask.projectId,
-              subtask.parentTaskId as string,
-              subtask.id,
-              API_STATUS_BY_UI[nextStatus],
-            );
-            updatedStatus = nextStatus;
-          } catch (err) {
-            setCoreError(
-              err instanceof ApiError ? err.message : "Failed to update subtask status.",
-            );
-            break;
-          }
-        }
-        return updatedStatus;
-      };
-
-      // Parent task: advance all children
-      if (!task.parentTaskId) {
-        const children = tasks.filter((t) => t.parentTaskId === task.id);
-        if (children.length === 0) return;
-
-        const updated = new Map<string, Task["status"]>();
-        for (const child of children) {
-          updated.set(child.id, await advanceSubtask(child, status));
-        }
-
-        setTasks((prev) => {
-          const next = prev.map((t) =>
-            updated.has(t.id) ? { ...t, status: updated.get(t.id)! } : t,
+      try {
+        if (task.parentTaskId) {
+          // It's a subtask
+          await todoApi.updateSubtaskStatus(
+            activeOrgId,
+            task.projectId,
+            task.parentTaskId,
+            task.id,
+            apiStatus,
           );
-          const refreshedChildren = next.filter((t) => t.parentTaskId === task.id);
-          const parentStatus = deriveParentStatus(refreshedChildren);
-          return next.map((t) => (t.id === task.id ? { ...t, status: parentStatus } : t));
-        });
-        return;
+        } else {
+          // It's a parent task
+          await todoApi.update(activeOrgId, task.projectId, task.id, {
+            status: apiStatus,
+          });
+        }
+        await refreshCore();
+      } catch (err) {
+        setCoreError(
+          err instanceof ApiError ? err.message : "Failed to update task status.",
+        );
       }
-
-      // Subtask: advance itself then re-derive parent
-      const nextStatus = await advanceSubtask(task, status);
-      setTasks((prev) => {
-        const next = prev.map((t) =>
-          t.id === task.id ? { ...t, status: nextStatus } : t,
-        );
-        const parentId = task.parentTaskId as string;
-        const siblings = next.filter((t) => t.parentTaskId === parentId);
-        const parentStatus = deriveParentStatus(siblings);
-        return next.map((t) =>
-          t.id === parentId ? { ...t, status: parentStatus } : t,
-        );
-      });
     },
-    [activeOrgId, tasks, setTasks, setCoreError],
+    [activeOrgId, tasks, setCoreError, refreshCore],
   );
 
   const updateTaskAssignees = useCallback(
